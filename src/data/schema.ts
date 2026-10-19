@@ -219,7 +219,7 @@ export function fromFields<K extends TableName>(table: K, id: string, fields: Re
   const out: Record<string, unknown> = { id };
   if (d.titleField) out[d.titleField] = fields.Title == null ? "" : String(fields.Title);
   for (const [field, type] of Object.entries(d.columns)) out[field] = decode(type, fields[columnName(field)]);
-  return out as Row<K>;
+  return out as unknown as Row<K>;
 }
 
 export type { DataSet };

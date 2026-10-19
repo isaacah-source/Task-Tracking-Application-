@@ -124,6 +124,7 @@ export interface Dependency {
 }
 
 export type MembershipStatus = "invited" | "accepted" | "declined";
+export const MEMBERSHIP_LABELS: Record<MembershipStatus, string> = { invited: "Invited", accepted: "Joined", declined: "Declined" };
 /** Links an FSI employee to a project or to a task/event. */
 export interface Membership {
   id: ID;

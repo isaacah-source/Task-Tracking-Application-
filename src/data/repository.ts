@@ -461,7 +461,7 @@ export class Repository {
     if (id) {
       const before = this.data.departments.find((d) => d.id === id)!;
       await this.update("departments", id, input);
-      for (const k of changedKeys(before, input)) await this.log("department", id, null, k, before[k], input[k]);
+      for (const k of changedKeys(before as Omit<Department, "id">, input)) await this.log("department", id, null, k, before[k], input[k]);
     } else {
       const d = await this.create("departments", { ...input, name: input.name.trim() });
       await this.log("department", d.id, null, "created", "", d.name);
@@ -505,7 +505,7 @@ export class Repository {
     if (id) {
       const before = this.data.people.find((p) => p.id === id)!;
       await this.update("people", id, clean);
-      for (const k of changedKeys(before, clean)) await this.log("person", id, null, k, before[k], clean[k]);
+      for (const k of changedKeys(before as Omit<Person, "id">, clean)) await this.log("person", id, null, k, before[k], clean[k]);
       return { ...before, ...clean };
     }
     const p = await this.create("people", clean);
