@@ -44,7 +44,9 @@ jobs:
             }
             const cfg = { tenantId: e.TENANT.trim(), clientId: e.CLIENT.trim(), siteUrl: e.SITE.trim() };
             if (e.ADMINS) cfg.setupAdmins = e.ADMINS.split(",").map((s) => s.trim()).filter(Boolean);
-            require("fs").writeFileSync("public/config.json", JSON.stringify(cfg, null, 2));
+            const fs = require("fs");
+            fs.mkdirSync("public", { recursive: true });
+            fs.writeFileSync("public/config.json", JSON.stringify(cfg, null, 2));
           '
       - name: Build
         # Pages serves the site from /<repo>/, so build for that subpath.
