@@ -1,0 +1,6 @@
+{
+  "tenantId": "YOUR-DIRECTORY-TENANT-ID",
+  "clientId": "YOUR-APPLICATION-CLIENT-ID",
+  "siteUrl": "https://frontiersecurityinstitute11.sharepoint.com/sites/FSITaskTrackerApp",
+  "setupAdmins": ["iharris@frontsec.org"]
+}
