@@ -1,7 +1,7 @@
 // Two-way link with FSI's Relationship Tracker (a separate app). This app pulls contacts and
 // organizations from the tracker, and pushes back which projects each contact is involved
-// in. The tracker has no API yet, so everything here goes through this interface; the mock
-// in mock.ts stands in until a real adapter is written.
+// in. workbook.ts talks to the tracker's Excel workbook; mock.ts stands in for demo mode
+// and tests.
 
 import type { RelationshipGroup } from "@/domain/types";
 
@@ -25,6 +25,10 @@ export interface ExternalOrganization {
 /** What this app tells the tracker about one contact's involvement in one project. */
 export interface ProjectInvolvement {
   externalId: string;
+  /** The contact's or organization's name, so the row reads on its own in Excel. */
+  contactName: string;
+  /** Link to the project in this app. */
+  projectUrl: string;
   projectId: string;
   projectTitle: string;
   projectStatus: string;

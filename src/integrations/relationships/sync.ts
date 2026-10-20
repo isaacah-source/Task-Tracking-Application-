@@ -13,12 +13,19 @@ export interface SyncResult {
   at: string;
 }
 
-export function involvementFor(data: DataSet, links: RelationshipLink[] = data.relationshipLinks): ProjectInvolvement[] {
+/** Where this app lives, for links back to a project. Empty in tests. */
+export function appBaseUrl(): string {
+  return typeof window === "undefined" ? "" : new URL(import.meta.env.BASE_URL, window.location.origin).href;
+}
+
+export function involvementFor(data: DataSet, links: RelationshipLink[] = data.relationshipLinks, baseUrl = appBaseUrl()): ProjectInvolvement[] {
   return links.map((l) => {
     const p = data.projects.find((x) => x.id === l.projectId);
     const owner = data.people.find((x) => x.id === p?.ownerId);
     return {
       externalId: l.externalId,
+      contactName: l.name,
+      projectUrl: baseUrl ? `${baseUrl}projects/${l.projectId}` : "",
       projectId: l.projectId,
       projectTitle: p?.title ?? "",
       projectStatus: p ? STATUS_LABELS[p.status] : "",
@@ -61,4 +68,18 @@ export async function syncRelationships(
   const push = [...involvementFor(data), ...removed.map((r) => ({ ...r, active: false }))];
   const { accepted } = await tracker.pushInvolvement(push);
   return { updated, pushed: accepted, missing, at };
+}
+
+/**
+ * Sends involvement changes to the tracker right away. If the tracker cannot be reached, the
+ * changes wait in `queue` and go out with the next sync. Returns whether they were sent.
+ */
+export async function pushNow(tracker: RelationshipTracker, items: ProjectInvolvement[], queue: ProjectInvolvement[]): Promise<boolean> {
+  try {
+    await tracker.pushInvolvement(items);
+    return true;
+  } catch {
+    queue.push(...items);
+    return false;
+  }
 }

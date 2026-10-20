@@ -46,7 +46,7 @@ describe("relationship sync", () => {
     const data = buildSeed(TODAY);
     data.relationshipLinks[0].externalId = "C-GONE";
     const tracker = new MockRelationshipTracker();
-    const removed = [{ externalId: "C-1002", projectId: "4", projectTitle: "x", projectStatus: "", ownerEmail: "", role: "", active: true }];
+    const removed = [{ externalId: "C-1002", contactName: "Sample Staffer B", projectId: "4", projectTitle: "x", projectStatus: "", ownerEmail: "", role: "", active: true, projectUrl: "" }];
     const res = await syncRelationships(tracker, data, async () => {}, removed);
     expect(res.missing).toEqual(["Sample Reviewer A"]);
     expect(tracker.received.get("C-1002:4")!.active).toBe(false);

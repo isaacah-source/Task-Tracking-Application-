@@ -2,5 +2,7 @@
   "tenantId": "YOUR-DIRECTORY-TENANT-ID",
   "clientId": "YOUR-APPLICATION-CLIENT-ID",
   "siteUrl": "https://frontiersecurityinstitute11.sharepoint.com/sites/FSITaskTrackerApp",
-  "setupAdmins": ["iharris@frontsec.org"]
+  "setupAdmins": ["iharris@frontsec.org"],
+  "trackerFolderUrl": "https://YOURORG.sharepoint.com/:f:/s/... (same link the Relationship Tracker uses)",
+  "trackerWorkbookName": "FSI_Relationship_Tracker_10.6.26_FINAL.xlsx"
 }

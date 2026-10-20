@@ -201,17 +201,38 @@ and per-output-type averages for duration, slip, and budget variance.
 
 ## Relationship Tracker
 
-The Relationship Tracker has no API yet. All contact with it goes through the
-`RelationshipTracker` interface in `src/integrations/relationships/adapter.ts`:
+This app connects to the Relationship Tracker through the tracker's own Excel workbook, the
+same file the Relationship Tracker app reads. It acts as the signed-in person, so it reaches
+the workbook only if that person can open it.
 
-- `listContacts()` and `listOrganizations()` pull from the tracker.
-- `pushInvolvement()` sends which projects involve each contact, including links that were
-  removed.
+- **Contacts and organizations** come from the workbook's **Master** tab. Columns are found by
+  header (Unique ID, Name, Organization, Relationship Type, Title, Email), so the tracker can
+  add or move columns. Organizations come from the contacts' Organization column.
+- **Project involvement** goes to an **FSI Projects** tab that this app creates and keeps up
+  to date: contact, project, status, owner, role on the project, whether the link is still
+  active, and a link to the project. Linking or unlinking a contact sends the change right
+  away. **Sync with tracker** also refreshes names and organizations and sends anything that
+  could not be sent earlier. The Relationship Tracker app reads this tab to list each contact's
+  FSI projects.
+- `groupForType()` maps the tracker's relationship types (Policy/NatSec/Gov, Congress, AI Labs,
+  Media, ...) onto this app's four groups. For other types, the person linking chooses.
 
-`MockRelationshipTracker` stands in for now. A real adapter could read and write the tracker
-workbook through Microsoft Graph the same way the Relationship Tracker app does, or call its
-API once one exists. `groupForType()` maps the tracker's relationship types (Policy/NatSec/Gov,
-Congress, AI Labs, Media, ...) onto this app's four groups.
+To connect it:
+
+1. In the Entra app registration (**API permissions**), add the Microsoft Graph delegated
+   permission `Files.ReadWrite.All` and click **Grant admin consent**. This is the same
+   permission the Relationship Tracker app uses.
+2. In this repository, open **Settings**, **Secrets and variables**, **Actions**, **Variables**,
+   and add `FSI_TRACKER_FOLDER_URL`: the sharing link to the folder holding the tracker
+   workbook. Copy it from the Relationship Tracker repository's `TRACKER_FOLDER_URL` variable
+   so both apps use the same file. If the folder holds more than one workbook, also add
+   `FSI_TRACKER_WORKBOOK` with the file name.
+3. Run **Deploy to GitHub Pages** (Actions tab), or push to `main`.
+
+Staff need the tracker folder shared with them: view access to link contacts' names, edit
+access for this app to write the FSI Projects tab. Without the folder link, the Relationships
+tab says the tracker is not connected. Demo mode always uses sample contacts
+(`MockRelationshipTracker`).
 
 ## Development
 
