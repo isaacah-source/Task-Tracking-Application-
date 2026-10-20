@@ -3,6 +3,7 @@ import type { Horizon, ID, Status, Task, TaskKind } from "@/domain/types";
 import { HORIZON_LABELS, STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { checkAssignment } from "@/domain/conflicts";
 import { predecessorIds, successorIds } from "@/domain/dependencies";
+import { Trash2 } from "lucide-react";
 import { RuleError, type TaskInput } from "@/data/repository";
 import { useStore } from "@/data/store";
 import { ConflictList } from "./ConflictList";
@@ -16,6 +17,8 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
   open: boolean; onClose: () => void; projectId: ID; task?: Task | null; canEdit: boolean;
 }) {
   const { data, run, today, repo, toast } = useStore();
+  const project = data.projects.find((p) => p.id === projectId);
+  const canDelete = !!project && repo.canDelete(project);
   const editing = !!task;
   const [v, setV] = useState<TaskInput>(() =>
     task
@@ -149,6 +152,8 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
                       <input
                         type="checkbox"
                         checked={preds.includes(t.id)}
+                        // Removing an existing link is a deletion: leads and admins only.
+                        disabled={!canDelete && initialPreds.includes(t.id)}
                         onChange={(e) => setPreds((p) => (e.target.checked ? [...p, t.id] : p.filter((x) => x !== t.id)))}
                       />
                       <span className="truncate">{t.title}</span>
@@ -168,6 +173,19 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
               </div>
             )}
             <DialogFooter>
+              {editing && canDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-red-700 hover:bg-red-50 hover:text-red-800 sm:mr-auto"
+                  onClick={async () => {
+                    if (!confirm(`Delete "${task!.title}"? The deletion is recorded in the admin deletion log.`)) return;
+                    if (await run(() => repo.deleteTask(task!.id).then(() => true), "Task deleted")) onClose();
+                  }}
+                >
+                  <Trash2 />Delete task
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={onClose}>{canEdit ? "Cancel" : "Close"}</Button>
               {canEdit && <Button type="submit">{editing ? "Save" : "Add task"}</Button>}
             </DialogFooter>

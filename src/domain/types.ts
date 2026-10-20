@@ -5,13 +5,23 @@
 
 export type ID = string;
 
-/** App role. Department owners get extra rights from Department.ownerId, not from a role. */
-export type Role = "admin" | "staff" | "viewer";
-export const ROLES: Role[] = ["admin", "staff", "viewer"];
-export const ROLE_LABELS: Record<Role, string> = { admin: "Admin", staff: "Staff", viewer: "Viewer" };
+/**
+ * App role. A Department Task Lead keeps the data for their assigned departments: they can
+ * edit and delete there. Department owners (Department.ownerId) are the senior position in a
+ * department and can edit its projects, but deleting is for leads and admins only.
+ */
+export type Role = "admin" | "deptLead" | "staff" | "viewer";
+export const ROLES: Role[] = ["admin", "deptLead", "staff", "viewer"];
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Admin",
+  deptLead: "Department Task Lead",
+  staff: "Staff",
+  viewer: "Viewer",
+};
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: "Everything, including departments, output types, and who has which role.",
-  staff: "Create projects. Edit projects they own or belong to. Department owners also edit every project in their department.",
+  admin: "Everything, including departments, output types, people, deleting anything, and the deletion log.",
+  deptLead: "Keeps the data for their assigned departments: adds, edits, and deletes there. Reports to the department owner.",
+  staff: "Adds projects and tasks. Edits projects they own or belong to. Cannot delete.",
   viewer: "Read-only.",
 };
 
@@ -69,6 +79,10 @@ export interface Person {
   /** Hours per week this person can give to project work. */
   weeklyCapacityHours: number;
   active: boolean;
+  /** Who this person reports to, for the org chart. */
+  managerId: ID | null;
+  /** Departments a Department Task Lead keeps data for (sub-departments included). */
+  leadDepartmentIds: ID[];
 }
 
 export interface OutputType {
@@ -215,6 +229,25 @@ export interface MeetingNote {
   createdById: ID | null;
 }
 
+/**
+ * One deletion, written before the item is removed. Stored in its own SharePoint list that
+ * only admins can read (see README, "Deletion log").
+ */
+export interface DeletionEntry {
+  id: ID;
+  entityType: "project" | "task" | "dependency" | "membership" | "projectLink" | "stage" | "relationshipLink" | "department" | "outputType";
+  entityId: ID;
+  /** What was deleted, in words. */
+  summary: string;
+  projectId: ID | null;
+  departmentId: ID | null;
+  /** The deleted records as JSON, so they can be restored by hand if needed. */
+  snapshot: string;
+  deletedById: ID | null;
+  deletedByEmail: string;
+  deletedAt: string;
+}
+
 /** Everything the app holds, as loaded from SharePoint (or demo data). */
 export interface DataSet {
   departments: Department[];
@@ -230,6 +263,8 @@ export interface DataSet {
   budgetChanges: BudgetChange[];
   audit: AuditEntry[];
   meetings: MeetingNote[];
+  /** Admin-only. Not loaded with the rest; see Repository.loadDeletions. */
+  deletions: DeletionEntry[];
 }
 
 export type TableName = keyof DataSet;
@@ -239,6 +274,6 @@ export function emptyDataSet(): DataSet {
   return {
     departments: [], people: [], outputTypes: [], projects: [], tasks: [], dependencies: [],
     memberships: [], projectLinks: [], stages: [], relationshipLinks: [], budgetChanges: [],
-    audit: [], meetings: [],
+    audit: [], meetings: [], deletions: [],
   };
 }

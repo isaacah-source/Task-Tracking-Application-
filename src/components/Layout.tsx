@@ -1,9 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  BarChart3, CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, NotebookPen, Settings, Sparkles, Users,
+  BarChart3, CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, Network, NotebookPen, Settings, Sparkles, Users,
 } from "lucide-react";
 import { useStore } from "@/data/store";
 import { isAdmin } from "@/domain/permissions";
+import { ROLE_LABELS } from "@/domain/types";
 import { Select } from "./ui/input";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ const NAV = [
   { to: "/tasks", label: "Task list", icon: ClipboardList },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/people", label: "Workload", icon: Users },
+  { to: "/org", label: "Org chart", icon: Network },
   { to: "/meeting", label: "Meeting notes", icon: NotebookPen },
   { to: "/plan", label: "Planning", icon: Sparkles },
   { to: "/ask", label: "Ask about the data", icon: MessageSquareText },
@@ -55,7 +57,7 @@ export function Layout() {
             <label className="grid gap-1">
               <span className="font-medium text-foreground">Demo: viewing as</span>
               <Select value={me?.id ?? ""} onChange={(e) => switchUser(e.target.value)}>
-                {data.people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.role})</option>)}
+                {data.people.map((p) => <option key={p.id} value={p.id}>{p.name} ({ROLE_LABELS[p.role]})</option>)}
               </Select>
             </label>
           ) : (

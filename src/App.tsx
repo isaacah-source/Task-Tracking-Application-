@@ -18,6 +18,7 @@ import ProjectDetailPage from "@/pages/ProjectDetail";
 import TasksPage from "@/pages/Tasks";
 import CalendarPage from "@/pages/Calendar";
 import PeoplePage from "@/pages/People";
+import OrgChartPage from "@/pages/OrgChart";
 import MeetingPage from "@/pages/Meeting";
 import PlanPage from "@/pages/Plan";
 import AskPage from "@/pages/Ask";
@@ -147,6 +148,7 @@ export default function App() {
           <Route path="tasks" element={<TasksPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="people" element={<PeoplePage />} />
+          <Route path="org" element={<OrgChartPage />} />
           <Route path="meeting" element={<MeetingPage />} />
           <Route path="plan" element={<PlanPage />} />
           <Route path="ask" element={<AskPage />} />

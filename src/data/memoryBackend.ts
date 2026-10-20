@@ -1,6 +1,7 @@
 import type { DataSet, ID, Row, TableName } from "@/domain/types";
 import { emptyDataSet } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
+import { ADMIN_ONLY_TABLES } from "./schema";
 
 /** Keeps everything in memory. Used for demo mode (nothing is saved) and tests. */
 export class MemoryBackend implements Backend {
@@ -16,7 +17,13 @@ export class MemoryBackend implements Backend {
   }
 
   async load(): Promise<DataSet> {
-    return structuredClone(this.data);
+    const out = structuredClone(this.data);
+    for (const t of ADMIN_ONLY_TABLES) (out as unknown as Record<string, unknown[]>)[t] = [];
+    return out;
+  }
+
+  async loadTable<K extends TableName>(table: K): Promise<Row<K>[]> {
+    return structuredClone(this.data[table]) as Row<K>[];
   }
 
   async create<K extends TableName>(table: K, row: NewRow<K>): Promise<Row<K>> {
