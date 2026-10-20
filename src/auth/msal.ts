@@ -1,4 +1,4 @@
-import { InteractionRequiredAuthError, PublicClientApplication, type AccountInfo } from "@azure/msal-browser";
+import { BrowserAuthError, CacheLookupPolicy, PublicClientApplication, type AccountInfo } from "@azure/msal-browser";
 import type { AppConfig } from "./config";
 import { BASE } from "./config";
 import { DATA_SCOPES } from "@/data/graphBackend";
@@ -8,6 +8,8 @@ import { DATA_SCOPES } from "@/data/graphBackend";
  * normal FSI work account; the token lets the app act as that person against SharePoint, so
  * it can only reach what that person can.
  */
+const REDIRECT_KEY = "fsi-auth-redirect-at";
+
 export class Auth {
   private pca: PublicClientApplication;
   account: AccountInfo | null = null;
@@ -46,12 +48,29 @@ export class Auth {
   token = async (scopes: string[]): Promise<string> => {
     if (!this.account) throw new Error("Not signed in.");
     try {
-      return (await this.pca.acquireTokenSilent({ scopes, account: this.account })).accessToken;
+      // Cached token or refresh token only. MSAL's hidden-frame fallback needs a separate
+      // redirect bridge page and otherwise times out, so a full redirect replaces it.
+      const r = await this.pca.acquireTokenSilent({
+        scopes, account: this.account, cacheLookupPolicy: CacheLookupPolicy.AccessTokenAndRefreshToken,
+      });
+      sessionStorage.removeItem(REDIRECT_KEY);
+      return r.accessToken;
     } catch (e) {
-      if (e instanceof InteractionRequiredAuthError) {
-        await this.pca.acquireTokenRedirect({ scopes, account: this.account });
+      // Network trouble is not a sign-in problem; let the caller show it.
+      if (e instanceof BrowserAuthError && e.errorCode === "no_network_connectivity") throw e;
+      // Stop instead of looping if a redirect just came back without a usable token.
+      const last = Number(sessionStorage.getItem(REDIRECT_KEY) ?? 0);
+      if (Date.now() - last < 60_000) {
+        sessionStorage.removeItem(REDIRECT_KEY);
+        throw new Error(
+          `Microsoft sign-in did not return access for this app (${(e as Error).message}). ` +
+            "Ask a Microsoft 365 admin to check the app registration's permissions and admin consent.",
+        );
       }
-      throw e;
+      sessionStorage.setItem(REDIRECT_KEY, String(Date.now()));
+      await this.pca.acquireTokenRedirect({ scopes, account: this.account });
+      // The page navigates away; this promise never settles.
+      return new Promise<string>(() => {});
     }
   };
 }
