@@ -38,6 +38,10 @@ loads sample departments, people, and projects. Nothing is saved.
   completes, Comms takes over for rollout.
 - **People and events.** Invite FSI colleagues to projects and to events inside them. Invited
   people see the invitation on their My work page.
+- **Org chart.** Who reports to whom, from each person's "Reports to" (set by admins). Anyone
+  without one appears under their department's owner. Filter to one department.
+- **Deletion log.** Every deletion is recorded with who and when before anything is removed,
+  in a SharePoint list only admins can read (see *Deletion log*).
 - **Workload.** A live card per person: open tasks, booked hours for the next 7 days and 4
   weeks against capacity, overdue and blocked counts, and upcoming deadlines.
 - **Relationships.** Link projects to external contacts and organizations from the
@@ -53,13 +57,19 @@ loads sample departments, people, and projects. Nothing is saved.
 
 | Role | Can do |
 |------|--------|
-| Admin | Everything, including departments, sub-departments, output types, and people |
-| Staff | Create projects; edit projects they own or have joined |
+| Admin | Everything: departments, sub-departments, output types, people, deleting anything, and the deletion log |
+| Department Task Lead | Keeps the data for their assigned departments (and sub-departments): adds, edits, and deletes there. Reports to the department owner |
+| Staff | Adds projects and tasks; edits projects they own or have joined. Cannot delete |
 | Viewer | Read-only |
 
-Whoever owns a department (set on Admin, Departments) can also edit every project in that
-department and its sub-departments. Anyone signed in but missing from the People list gets
-read-only access until an admin adds them.
+**Department owners** (set on Admin, Departments) are the senior person in each department.
+They can edit every project in their department and its sub-departments, but deleting is
+for admins and Department Task Leads only. Anyone signed in but missing from the People list
+gets read-only access until an admin adds them.
+
+"Deleting" covers projects, tasks, task links, people on projects and events, project links,
+handoff stages, and relationship links. People are never deleted: an admin marks them
+inactive instead.
 
 ## Where the data lives
 
@@ -81,11 +91,45 @@ should not rename the lists or their columns.
 | FSI Budget Log | Every budget and spend change |
 | FSI Audit Log | Every change, with reasons for date changes |
 | FSI Meeting Notes | Meeting notes |
+| FSI Deletion Log | Every deletion: what, who, when, and a copy of the deleted records. Admins only |
 
 Dates are stored as plain text (`2026-11-03`) so a deadline never shifts with time zones.
 Lists and items belong to the **site**, not to a folder. The Teams folder link for this app
 points at the site's document library; the app uses the site address
 `https://frontiersecurityinstitute11.sharepoint.com/sites/FSITaskTrackerApp`.
+
+## Deletion log
+
+Before the app deletes anything, it writes an entry to the **FSI Deletion Log** list: what was
+deleted, the person's name and Microsoft email, the time, and a copy of the deleted records
+(so an admin can restore them by hand). If the entry cannot be written, nothing is deleted.
+Deletions do not appear in the project History tab, which everyone can see.
+
+In the app, only admins see the log (Admin, Deletion log). To keep it admin-only in
+SharePoint itself, a site owner turns on item-level permissions once:
+
+1. Open the FSI Task Tracker site, then **Site contents**, then **FSI Deletion Log**.
+2. Click the gear icon, then **List settings**, then **Advanced settings**.
+3. Under **Item-level Permissions**, set **Read access** to *Read items that were created by
+   the user* and **Create and Edit access** to *Create items and edit items that were created
+   by the user*. Click **OK**.
+
+After that, someone who deletes can add log entries but sees only their own. Site owners see
+every entry.
+
+Two things to know:
+
+- **App admins need to be SharePoint site owners** to read every entry. The app's Admin role
+  does not change SharePoint permissions.
+- **Members with "Edit" permission can change list settings**, including this one, and could
+  edit their own entries directly in SharePoint. List version history keeps the original
+  either way. For a stricter setup, change the site's Members group to the **Contribute**
+  permission level (Site settings, Site permissions), which can add and edit items but not
+  change list settings.
+
+**Upgrading a site set up before this version:** the first admin to open the app sees **Set up
+site** again. Clicking it adds the new list and the new People columns (Reports to, lead
+departments). Nothing existing is changed.
 
 ## One-time setup
 

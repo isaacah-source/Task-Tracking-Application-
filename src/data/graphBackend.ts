@@ -4,7 +4,7 @@
 import type { DataSet, ID, Row, TableName } from "@/domain/types";
 import { emptyDataSet } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
-import { SCHEMA, TABLES, columnName, displayName, fromFields, toFields, type ColType } from "./schema";
+import { ADMIN_ONLY_TABLES, SCHEMA, TABLES, columnName, displayName, fromFields, toFields, type ColType } from "./schema";
 
 export const GRAPH = "https://graph.microsoft.com/v1.0";
 
@@ -106,6 +106,10 @@ export class GraphListsBackend implements Backend {
     return `/sites/${await this.site()}/lists/${id}`;
   }
 
+  async loadTable<K extends TableName>(table: K): Promise<Row<K>[]> {
+    return this.readAll(table);
+  }
+
   private async readAll<K extends TableName>(table: K): Promise<Row<K>[]> {
     const base = await this.listPath(table);
     const rows: Row<K>[] = [];
@@ -122,7 +126,7 @@ export class GraphListsBackend implements Backend {
   async load(): Promise<DataSet> {
     const data = emptyDataSet();
     await Promise.all(
-      TABLES.map(async (t) => {
+      TABLES.filter((t) => !ADMIN_ONLY_TABLES.includes(t)).map(async (t) => {
         (data as unknown as Record<string, unknown>)[t] = await this.readAll(t);
       }),
     );

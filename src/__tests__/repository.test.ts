@@ -173,8 +173,113 @@ describe("tasks and dependencies", () => {
   });
 
   it("removes a task's links when it is deleted", async () => {
+    const { repo: lead } = await repoAs("Priya Raman (sample)"); // Research Task Lead
+    await lead.deleteTask("4");
+    expect(lead.data.dependencies.some((d) => d.predecessorId === "4" || d.successorId === "4")).toBe(false);
+  });
+});
+
+describe("deleting", () => {
+  // Project 1 and 3 are Research; project 2 is Comms; project 6 is Ops > Resourcing.
+  it("refuses staff, department owners, and viewers", async () => {
+    for (const name of ["Dana Ortiz (sample)", "Aaron", "Board Observer (sample)"]) {
+      const { repo } = await repoAs(name);
+      await expect(repo.deleteTask("4")).rejects.toBeInstanceOf(PermissionError);
+      await expect(repo.deleteProject("1")).rejects.toBeInstanceOf(PermissionError);
+    }
+  });
+
+  it("lets a Department Task Lead delete only in their departments", async () => {
+    const { repo } = await repoAs("Priya Raman (sample)"); // Research
+    await repo.deleteTask("9"); // wargame task, Research
+    await expect(repo.deleteTask("7")).rejects.toBeInstanceOf(PermissionError); // op-ed task, Comms
+    await expect(repo.removeDependency("7")).rejects.toBeInstanceOf(PermissionError); // Comms link
+    expect(repo.canDelete(repo.project("1"))).toBe(true);
+    expect(repo.canDelete(repo.project("2"))).toBe(false);
+  });
+
+  it("covers sub-departments of a lead's department", async () => {
+    const { repo } = await repoAs("Taylor Brooks (sample)"); // Ops, which holds Resourcing
+    await repo.deleteProject("6");
+    expect(repo.data.projects.some((p) => p.id === "6")).toBe(false);
+  });
+
+  it("lets admins delete anywhere", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await repo.deleteTask("7");
+    await repo.removeMembership("1");
+  });
+
+  it("logs every kind of deletion with time and user, in the deletion log only", async () => {
+    const { repo } = await repoAs("Priya Raman (sample)");
+    const auditBefore = repo.data.audit.length;
+    await repo.removeDependency("1");
+    await repo.removeMembership("2");
+    await repo.unlinkProjects("1");
+    await repo.unlinkRelationship("1");
+    await repo.removeStage("2");
+    await repo.deleteTask("5");
+    await repo.deleteProject("3");
+    expect(repo.data.deletions.map((d) => d.entityType)).toEqual([
+      "dependency", "membership", "projectLink", "relationshipLink", "stage", "task", "project",
+    ]);
+    for (const d of repo.data.deletions) {
+      expect(d).toMatchObject({ deletedById: "6", deletedByEmail: "priya@example.org", deletedAt: "2026-10-19T14:00:00.000Z" });
+      expect(d.summary).not.toBe("");
+      expect(() => JSON.parse(d.snapshot)).not.toThrow();
+    }
+    const project = repo.data.deletions.at(-1)!;
+    expect(project.summary).toBe('Project "Frontier AI crisis wargame" with 4 tasks');
+    expect(JSON.parse(project.snapshot).tasks).toHaveLength(4);
+    // Deletions stay out of the audit log that everyone can read.
+    expect(repo.data.audit.length).toBe(auditBefore);
+  });
+
+  it("writes the log entry before deleting, so a failed log stops the deletion", async () => {
+    const data = buildSeed(TODAY);
+    const backend = new MemoryBackend(data);
+    const realCreate = backend.create.bind(backend);
+    backend.create = (async (table: string, row: unknown) => {
+      if (table === "deletions") throw new Error("SharePoint unavailable");
+      return realCreate(table as never, row as never);
+    }) as typeof backend.create;
+    const me = data.people.find((p) => p.name === "Ike Harris")!;
+    const repo = new Repository(backend, me, me.email, NOW);
+    await repo.refresh();
+    await expect(repo.deleteTask("4")).rejects.toThrow("SharePoint unavailable");
+    expect((await backend.load()).tasks.some((t) => t.id === "4")).toBe(true);
+  });
+
+  it("keeps the log out of the normal load and gives it only to admins", async () => {
+    const { repo, backend } = await repoAs("Ike Harris");
     await repo.deleteTask("4");
-    expect(repo.data.dependencies.some((d) => d.predecessorId === "4" || d.successorId === "4")).toBe(false);
+    expect((await backend.load()).deletions).toEqual([]);
+    expect(await repo.loadDeletions()).toHaveLength(1);
+    const { repo: lead } = await repoAs("Priya Raman (sample)");
+    await expect(lead.loadDeletions()).rejects.toBeInstanceOf(PermissionError);
+  });
+});
+
+describe("Department Task Leads and reporting lines", () => {
+  it("lets a lead edit projects in their departments", async () => {
+    const { repo } = await repoAs("Marcus Lee (sample)"); // Comms lead
+    await repo.updateProject("2", { milestone: "x" });
+    await expect(repo.updateProject("3", { milestone: "x" })).rejects.toBeInstanceOf(PermissionError);
+  });
+
+  it("requires departments for a lead and refuses reporting loops", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    const dana = repo.data.people.find((p) => p.name === "Dana Ortiz (sample)")!;
+    await expect(repo.savePerson({ ...dana, role: "deptLead", leadDepartmentIds: [] }, dana.id)).rejects.toThrow(/Choose the departments/);
+    const aaron = repo.data.people.find((p) => p.name === "Aaron")!;
+    await expect(repo.savePerson({ ...aaron, managerId: dana.id }, aaron.id)).rejects.toThrow(/reporting loop/);
+  });
+
+  it("drops lead departments when the role changes", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    const priya = repo.data.people.find((p) => p.name === "Priya Raman (sample)")!;
+    const saved = await repo.savePerson({ ...priya, role: "staff" }, priya.id);
+    expect(saved.leadDepartmentIds).toEqual([]);
   });
 });
 
@@ -236,7 +341,7 @@ describe("admin", () => {
   });
   it("validates people", async () => {
     const { repo } = await repoAs("Ike Harris");
-    await expect(repo.savePerson({ name: "X", email: "AARON@example.org", role: "staff", departmentId: null, weeklyCapacityHours: 30, active: true }))
+    await expect(repo.savePerson({ name: "X", email: "AARON@example.org", role: "staff", departmentId: null, weeklyCapacityHours: 30, active: true, managerId: null, leadDepartmentIds: [] }))
       .rejects.toMatchObject({ problems: ["Someone already uses that email."] });
     await expect(repo.savePerson({ ...repo.me!, role: "staff" }, repo.me!.id)).rejects.toThrow(/own admin role/);
   });

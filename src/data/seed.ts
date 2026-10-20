@@ -21,14 +21,15 @@ export function buildSeed(today: string): DataSet {
   const data = emptyDataSet();
 
   data.people = [
-    { id: "1", name: "Ike Harris", email: "ike@example.org", role: "admin", departmentId: "4", weeklyCapacityHours: 30, active: true },
-    { id: "2", name: "Susan Malandrino", email: "susan@example.org", role: "staff", departmentId: "1", weeklyCapacityHours: 32, active: true },
-    { id: "3", name: "Aaron", email: "aaron@example.org", role: "staff", departmentId: "2", weeklyCapacityHours: 32, active: true },
-    { id: "4", name: "Jeremy", email: "jeremy@example.org", role: "staff", departmentId: "3", weeklyCapacityHours: 32, active: true },
-    { id: "5", name: "Dana Ortiz (sample)", email: "dana@example.org", role: "staff", departmentId: "2", weeklyCapacityHours: 36, active: true },
-    { id: "6", name: "Priya Raman (sample)", email: "priya@example.org", role: "staff", departmentId: "2", weeklyCapacityHours: 36, active: true },
-    { id: "7", name: "Marcus Lee (sample)", email: "marcus@example.org", role: "staff", departmentId: "1", weeklyCapacityHours: 36, active: true },
-    { id: "8", name: "Board Observer (sample)", email: "viewer@example.org", role: "viewer", departmentId: null, weeklyCapacityHours: 0, active: true },
+    { id: "1", name: "Ike Harris", email: "ike@example.org", role: "admin", departmentId: "4", weeklyCapacityHours: 30, active: true, managerId: null, leadDepartmentIds: [] },
+    { id: "2", name: "Susan Malandrino", email: "susan@example.org", role: "staff", departmentId: "1", weeklyCapacityHours: 32, active: true, managerId: "1", leadDepartmentIds: [] },
+    { id: "3", name: "Aaron", email: "aaron@example.org", role: "staff", departmentId: "2", weeklyCapacityHours: 32, active: true, managerId: "1", leadDepartmentIds: [] },
+    { id: "4", name: "Jeremy", email: "jeremy@example.org", role: "staff", departmentId: "3", weeklyCapacityHours: 32, active: true, managerId: "1", leadDepartmentIds: [] },
+    { id: "5", name: "Dana Ortiz (sample)", email: "dana@example.org", role: "staff", departmentId: "2", weeklyCapacityHours: 36, active: true, managerId: "3", leadDepartmentIds: [] },
+    { id: "6", name: "Priya Raman (sample)", email: "priya@example.org", role: "deptLead", departmentId: "2", weeklyCapacityHours: 36, active: true, managerId: "3", leadDepartmentIds: ["2"] },
+    { id: "7", name: "Marcus Lee (sample)", email: "marcus@example.org", role: "deptLead", departmentId: "1", weeklyCapacityHours: 36, active: true, managerId: "2", leadDepartmentIds: ["1"] },
+    { id: "9", name: "Taylor Brooks (sample)", email: "taylor@example.org", role: "deptLead", departmentId: "3", weeklyCapacityHours: 36, active: true, managerId: "4", leadDepartmentIds: ["3"] },
+    { id: "8", name: "Board Observer (sample)", email: "viewer@example.org", role: "viewer", departmentId: null, weeklyCapacityHours: 0, active: true, managerId: null, leadDepartmentIds: [] },
   ];
 
   data.departments = [

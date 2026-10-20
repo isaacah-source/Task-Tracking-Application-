@@ -87,3 +87,26 @@ describe("personLoad", () => {
     expect(loadLevel(1.2)).toBe("over");
   });
 });
+
+describe("org chart reporting lines", async () => {
+  const { effectiveManagers, roleLabel } = await import("@/domain/permissions");
+  const data = buildSeed(TODAY);
+  it("uses Reports to, then falls back to the department owner", () => {
+    const people = data.people.map((p) => (p.name === "Dana Ortiz (sample)" ? { ...p, managerId: null } : p));
+    const m = effectiveManagers(people, data.departments);
+    expect(m.get("5")).toBe("3"); // Dana -> Research owner Aaron
+    expect(m.get("9")).toBe("4"); // Taylor -> Jeremy (set)
+    expect(m.get("1")).toBe(null); // Ike at the top
+  });
+  it("breaks reporting loops instead of hanging", () => {
+    const people = data.people.map((p) => (p.id === "1" ? { ...p, managerId: "3" } : p));
+    const m = effectiveManagers(people, data.departments);
+    const seen = new Set<string>();
+    let cur: string | null = "3";
+    while (cur && !seen.has(cur)) (seen.add(cur), (cur = m.get(cur) ?? null));
+    expect(cur).toBe(null);
+  });
+  it("labels leads with their departments", () => {
+    expect(roleLabel(data.people.find((p) => p.id === "6")!, data.departments)).toBe("Department Task Lead (Research)");
+  });
+});

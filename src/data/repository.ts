@@ -4,12 +4,12 @@
 // It keeps a write-through copy of the data so rules always check the latest state.
 
 import type {
-  AuditEntry, DataSet, Department, ID, MeetingNote, Membership, MembershipStatus, OutputType, Person,
+  AuditEntry, DeletionEntry, DataSet, Department, ID, MeetingNote, Membership, MembershipStatus, OutputType, Person,
   Project, RelationshipLink, Row, Stage, TableName, Task,
 } from "@/domain/types";
 import { emptyDataSet, STATUS_LABELS } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
-import { canEditProject, canWrite, isAdmin } from "@/domain/permissions";
+import { canDeleteInDepartment, canEditProject, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
 import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
 import { completeStage, stagesFor } from "@/domain/transitions";
 import { isIsoDate } from "@/domain/dates";
@@ -142,6 +142,40 @@ export class Repository {
     if (!canWrite(this.me)) throw new PermissionError("Your account is view-only.");
   }
 
+  /** Deleting in a project: admins, and the Department Task Lead for its department. */
+  canDelete(project: Project): boolean {
+    return canDeleteInDepartment(this.me, project.departmentId, this.data.departments);
+  }
+
+  private requireDelete(project: Project) {
+    if (!this.canDelete(project)) {
+      throw new PermissionError("Only an admin or this department's Department Task Lead can delete. You can mark the item done or on hold instead.");
+    }
+  }
+
+  /**
+   * Writes one entry to the admin-only deletion log. Runs before anything is removed, so a
+   * deletion that cannot be logged does not happen.
+   */
+  private async logDeletion(
+    entityType: DeletionEntry["entityType"], entityId: ID, summary: string, projectId: ID | null, departmentId: ID | null, snapshot: unknown,
+  ) {
+    let json = JSON.stringify(snapshot);
+    // SharePoint's long text columns hold about 63,000 characters.
+    if (json.length > 60_000) json = `${json.slice(0, 60_000)}...(cut off)`;
+    await this.create("deletions", {
+      entityType, entityId, summary, projectId, departmentId, snapshot: json,
+      deletedById: this.me?.id ?? null, deletedByEmail: this.me?.email ?? this.myEmail, deletedAt: this.nowIso(),
+    });
+  }
+
+  /** The deletion log, newest first. Admins only. */
+  async loadDeletions(): Promise<DeletionEntry[]> {
+    this.requireAdmin();
+    this.data.deletions = (await this.backend.loadTable("deletions")).sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+    return this.data.deletions;
+  }
+
   private requireAdmin() {
     if (!isAdmin(this.me)) throw new PermissionError("Only admins can change this.");
   }
@@ -201,14 +235,24 @@ export class Repository {
 
   async deleteProject(id: ID): Promise<void> {
     const p = this.project(id);
-    if (!isAdmin(this.me) && p.ownerId !== this.me?.id) throw new PermissionError("Only the project owner or an admin can delete a project.");
-    for (const t of this.data.tasks.filter((x) => x.projectId === id)) await this.deleteTask(t.id, false);
-    for (const s of this.data.stages.filter((x) => x.projectId === id)) await this.remove("stages", s.id);
+    this.requireDelete(p);
+    const tasks = this.data.tasks.filter((x) => x.projectId === id);
+    const taskIds = new Set(tasks.map((t) => t.id));
+    const stages = this.data.stages.filter((x) => x.projectId === id);
+    const memberships = this.data.memberships.filter((x) => (x.targetType === "project" && x.targetId === id) || (x.targetType === "task" && taskIds.has(x.targetId)));
+    const links = this.data.projectLinks.filter((x) => x.fromProjectId === id || x.toProjectId === id);
+    const relationships = this.data.relationshipLinks.filter((x) => x.projectId === id);
+    const dependencies = this.data.dependencies.filter((d) => taskIds.has(d.predecessorId) || taskIds.has(d.successorId));
+    await this.logDeletion(
+      "project", id, `Project "${p.title}" with ${tasks.length} task${tasks.length === 1 ? "" : "s"}`, id, p.departmentId,
+      { project: p, tasks, dependencies, stages, memberships, links, relationships },
+    );
+    for (const t of tasks) await this.removeTaskRecords(t.id);
+    for (const s of stages) await this.remove("stages", s.id);
     for (const m of this.data.memberships.filter((x) => x.targetType === "project" && x.targetId === id)) await this.remove("memberships", m.id);
-    for (const l of this.data.projectLinks.filter((x) => x.fromProjectId === id || x.toProjectId === id)) await this.remove("projectLinks", l.id);
-    for (const r of this.data.relationshipLinks.filter((x) => x.projectId === id)) await this.remove("relationshipLinks", r.id);
+    for (const l of links) await this.remove("projectLinks", l.id);
+    for (const r of relationships) await this.remove("relationshipLinks", r.id);
     await this.remove("projects", id);
-    await this.log("project", id, id, "deleted", p.title, "");
   }
 
   // ---- Tasks ----
@@ -279,13 +323,23 @@ export class Repository {
     return moves.length;
   }
 
-  async deleteTask(id: ID, log = true): Promise<void> {
+  async deleteTask(id: ID): Promise<void> {
     const t = this.task(id);
-    this.requireEdit(this.project(t.projectId));
+    const project = this.project(t.projectId);
+    this.requireDelete(project);
+    await this.logDeletion("task", id, `Task "${t.title}" in "${project.title}"`, project.id, project.departmentId, {
+      task: t,
+      dependencies: this.data.dependencies.filter((x) => x.predecessorId === id || x.successorId === id),
+      memberships: this.data.memberships.filter((x) => x.targetType === "task" && x.targetId === id),
+    });
+    await this.removeTaskRecords(id);
+  }
+
+  /** Removes a task with its links and invitations. Callers check permission and log first. */
+  private async removeTaskRecords(id: ID): Promise<void> {
     for (const d of this.data.dependencies.filter((x) => x.predecessorId === id || x.successorId === id)) await this.remove("dependencies", d.id);
     for (const m of this.data.memberships.filter((x) => x.targetType === "task" && x.targetId === id)) await this.remove("memberships", m.id);
     await this.remove("tasks", id);
-    if (log) await this.log("task", id, t.projectId, "deleted", t.title, "");
   }
 
   // ---- Dependencies ----
@@ -304,9 +358,10 @@ export class Repository {
     const d = this.data.dependencies.find((x) => x.id === id);
     if (!d) return;
     const suc = this.task(d.successorId);
-    this.requireEdit(this.project(suc.projectId));
+    const project = this.project(suc.projectId);
+    this.requireDelete(project);
+    await this.logDeletion("dependency", id, `Link: "${this.task(d.predecessorId).title}" before "${suc.title}"`, project.id, project.departmentId, d);
     await this.remove("dependencies", id);
-    await this.log("dependency", id, suc.projectId, "removed", `"${this.task(d.predecessorId).title}" before "${suc.title}"`, "");
   }
 
   // ---- People on projects and events ----
@@ -337,10 +392,12 @@ export class Repository {
   async removeMembership(id: ID): Promise<void> {
     const m = this.data.memberships.find((x) => x.id === id);
     if (!m) return;
-    const projectId = m.targetType === "project" ? m.targetId : this.task(m.targetId).projectId;
-    if (m.personId !== this.me?.id) this.requireEdit(this.project(projectId));
+    const project = this.project(m.targetType === "project" ? m.targetId : this.task(m.targetId).projectId);
+    this.requireDelete(project);
+    const who = this.data.people.find((p) => p.id === m.personId)?.name ?? m.personId;
+    const what = m.targetType === "project" ? project.title : this.task(m.targetId).title;
+    await this.logDeletion("membership", id, `${who} removed from "${what}"`, project.id, project.departmentId, m);
     await this.remove("memberships", id);
-    await this.log("membership", id, projectId, "removed", this.data.people.find((p) => p.id === m.personId)?.name ?? m.personId, "");
   }
 
   // ---- Project links ----
@@ -358,7 +415,11 @@ export class Repository {
   async unlinkProjects(id: ID): Promise<void> {
     const l = this.data.projectLinks.find((x) => x.id === id);
     if (!l) return;
-    this.requireEdit(this.project(l.fromProjectId));
+    const from = this.project(l.fromProjectId);
+    const to = this.data.projects.find((p) => p.id === l.toProjectId);
+    // A lead for either side may remove the link.
+    if (!this.canDelete(from) && !(to && this.canDelete(to))) this.requireDelete(from);
+    await this.logDeletion("projectLink", id, `Link between "${from.title}" and "${to?.title ?? "a deleted project"}"`, from.id, from.departmentId, l);
     await this.remove("projectLinks", id);
   }
 
@@ -392,8 +453,10 @@ export class Repository {
   async removeStage(id: ID): Promise<void> {
     const s = this.data.stages.find((x) => x.id === id);
     if (!s) return;
-    this.requireEdit(this.project(s.projectId));
+    const project = this.project(s.projectId);
+    this.requireDelete(project);
     if (s.status !== "pending") throw new RuleError(["Only stages that have not started can be removed."]);
+    await this.logDeletion("stage", id, `Stage "${s.name}" of "${project.title}"`, project.id, project.departmentId, s);
     await this.remove("stages", id);
   }
 
@@ -424,7 +487,9 @@ export class Repository {
   async unlinkRelationship(id: ID): Promise<void> {
     const r = this.data.relationshipLinks.find((x) => x.id === id);
     if (!r) return;
-    this.requireEdit(this.project(r.projectId));
+    const project = this.project(r.projectId);
+    this.requireDelete(project);
+    await this.logDeletion("relationshipLink", id, `${r.name} unlinked from "${project.title}"`, project.id, project.departmentId, r);
     await this.remove("relationshipLinks", id);
   }
 
@@ -474,6 +539,9 @@ export class Repository {
     if (this.data.projects.some((p) => p.departmentId === id)) problems.push("Move its projects to another department first.");
     if (this.data.departments.some((d) => d.parentId === id)) problems.push("Remove or move its sub-departments first.");
     if (problems.length) throw new RuleError(problems);
+    const d = this.data.departments.find((x) => x.id === id);
+    if (!d) return;
+    await this.logDeletion("department", id, `Department "${d.name}"`, null, id, d);
     await this.remove("departments", id);
   }
 
@@ -489,6 +557,9 @@ export class Repository {
     if (this.data.projects.some((p) => p.outputTypeIds.includes(id))) {
       throw new RuleError(["Projects still use this output type. Turn it off instead, so old projects keep their label."]);
     }
+    const o = this.data.outputTypes.find((x) => x.id === id);
+    if (!o) return;
+    await this.logDeletion("outputType", id, `Output type "${o.name}"`, null, null, o);
     await this.remove("outputTypes", id);
   }
 
@@ -500,8 +571,15 @@ export class Repository {
     if (!/^\S+@\S+\.\S+$/.test(email)) problems.push("Enter a valid email address.");
     if (this.data.people.some((p) => p.email.toLowerCase() === email && p.id !== id)) problems.push("Someone already uses that email.");
     if (id === this.me?.id && input.role !== "admin") problems.push("You cannot remove your own admin role.");
+    if (input.role === "deptLead" && !input.leadDepartmentIds.length) problems.push("Choose the departments this Department Task Lead keeps data for.");
+    if (input.managerId && id && wouldLoopReporting(id, input.managerId, this.data.people)) {
+      problems.push("That would make a reporting loop (someone would report to themselves through others).");
+    }
     if (problems.length) throw new RuleError(problems);
-    const clean = { ...input, name: input.name.trim(), email };
+    const clean = {
+      ...input, name: input.name.trim(), email,
+      leadDepartmentIds: input.role === "deptLead" ? input.leadDepartmentIds : [],
+    };
     if (id) {
       const before = this.data.people.find((p) => p.id === id)!;
       await this.update("people", id, clean);
@@ -521,7 +599,7 @@ export class Repository {
     await this.backend.setup();
     await this.refresh();
     let me = this.data.people.find((p) => p.email.toLowerCase() === email.toLowerCase());
-    if (!me) me = await this.create("people", { name, email: email.toLowerCase(), role: "admin", departmentId: null, weeklyCapacityHours: 32, active: true });
+    if (!me) me = await this.create("people", { name, email: email.toLowerCase(), role: "admin", departmentId: null, weeklyCapacityHours: 32, active: true, managerId: null, leadDepartmentIds: [] });
     else if (me.role !== "admin") await this.update("people", me.id, { role: "admin" });
     this.me = { ...me, role: "admin" };
     if (!this.data.departments.length) for (const d of seed.departments) await this.create("departments", { name: d, parentId: null, ownerId: null });

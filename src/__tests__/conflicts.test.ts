@@ -5,7 +5,7 @@ import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domai
 const TODAY = "2026-10-19"; // a Monday
 
 const person = (id: string, over: Partial<Person> = {}): Person => ({
-  id, name: `P${id}`, email: `${id}@example.org`, role: "staff", departmentId: null, weeklyCapacityHours: 40, active: true, ...over,
+  id, name: `P${id}`, email: `${id}@example.org`, role: "staff", departmentId: null, weeklyCapacityHours: 40, active: true, managerId: null, leadDepartmentIds: [], ...over,
 });
 const project = (over: Partial<Project> = {}): Project => ({
   id: "pr", title: "Paper", departmentId: "d", ownerId: "1", outputTypeIds: [], milestone: "", horizon: "immediate",

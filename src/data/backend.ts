@@ -7,7 +7,10 @@ export type NewRow<K extends TableName> = Omit<Row<K>, "id">;
 
 export interface Backend {
   readonly kind: "memory" | "sharepoint";
+  /** Everything except the admin-only lists (see ADMIN_ONLY_TABLES). */
   load(): Promise<DataSet>;
+  /** One list's rows. Used for the admin-only lists. */
+  loadTable<K extends TableName>(table: K): Promise<Row<K>[]>;
   create<K extends TableName>(table: K, row: NewRow<K>): Promise<Row<K>>;
   /** Writes only the fields given. */
   update<K extends TableName>(table: K, id: ID, patch: Partial<Row<K>>): Promise<void>;

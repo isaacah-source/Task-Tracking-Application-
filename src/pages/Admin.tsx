@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useStore } from "@/data/store";
-import type { Department, ID, OutputType, Person, Role } from "@/domain/types";
+import type { DeletionEntry, Department, ID, OutputType, Person, Role } from "@/domain/types";
+import { formatDate } from "@/domain/dates";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES } from "@/domain/types";
 import { isAdmin, roleLabel } from "@/domain/permissions";
 import { SCHEMA, TABLES } from "@/data/schema";
@@ -28,11 +29,13 @@ export default function AdminPage() {
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="outputs">Output types</TabsTrigger>
           <TabsTrigger value="connections">Connections</TabsTrigger>
+          <TabsTrigger value="deletions">Deletion log</TabsTrigger>
         </TabsList>
         <TabsContent value="people"><PeopleAdmin /></TabsContent>
         <TabsContent value="departments"><DepartmentsAdmin /></TabsContent>
         <TabsContent value="outputs"><OutputTypesAdmin /></TabsContent>
         <TabsContent value="connections"><ConnectionsAdmin /></TabsContent>
+        <TabsContent value="deletions"><DeletionLog /></TabsContent>
       </Tabs>
     </>
   );
@@ -46,12 +49,12 @@ function PeopleAdmin() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <ul className="grid gap-1 text-sm text-muted-foreground">
           {ROLES.map((r) => <li key={r}><span className="font-medium text-foreground">{ROLE_LABELS[r]}:</span> {ROLE_DESCRIPTIONS[r]}</li>)}
-          <li><span className="font-medium text-foreground">Department owners</span> (set on the Departments tab) can edit every project in their department.</li>
+          <li><span className="font-medium text-foreground">Department owners</span> (set on the Departments tab) are the senior person in a department and can edit every project in it. Deleting is for admins and Department Task Leads.</li>
         </ul>
         <Button onClick={() => setEditing("new")}><Plus />Add person</Button>
       </div>
       <Table>
-        <THead><TR><TH>Name</TH><TH>Microsoft email</TH><TH>Role</TH><TH>Department</TH><TH className="text-right">Hours/week</TH><TH></TH></TR></THead>
+        <THead><TR><TH>Name</TH><TH>Microsoft email</TH><TH>Role</TH><TH>Department</TH><TH>Reports to</TH><TH className="text-right">Hours/week</TH><TH></TH></TR></THead>
         <TBody>
           {[...data.people].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name)).map((p) => (
             <TR key={p.id} className={p.active ? "" : "opacity-60"}>
@@ -59,6 +62,7 @@ function PeopleAdmin() {
               <TD>{p.email}</TD>
               <TD>{roleLabel(p, data.departments)}</TD>
               <TD>{deptName(data, p.departmentId)}</TD>
+              <TD>{p.managerId ? personName(data, p.managerId) : <span className="text-muted-foreground">Not set</span>}</TD>
               <TD className="text-right">{p.weeklyCapacityHours}</TD>
               <TD><Button size="sm" variant="ghost" onClick={() => setEditing(p)}><Pencil />Edit</Button></TD>
             </TR>
@@ -72,7 +76,9 @@ function PeopleAdmin() {
 
 function PersonDialog({ person, onClose }: { person: Person | null; onClose: () => void }) {
   const { data, run, repo } = useStore();
-  const [v, setV] = useState<Omit<Person, "id">>(person ?? { name: "", email: "", role: "staff", departmentId: null, weeklyCapacityHours: 32, active: true });
+  const [v, setV] = useState<Omit<Person, "id">>(
+    person ?? { name: "", email: "", role: "staff", departmentId: null, weeklyCapacityHours: 32, active: true, managerId: null, leadDepartmentIds: [] },
+  );
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((x) => ({ ...x, [k]: val }));
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -92,6 +98,27 @@ function PersonDialog({ person, onClose }: { person: Person | null; onClose: () 
             </Field>
             <Field label="Department"><DepartmentSelect departments={data.departments} value={v.departmentId} onChange={(id) => set("departmentId", id)} allowEmpty emptyLabel="None" /></Field>
           </div>
+          {v.role === "deptLead" && (
+            <fieldset className="grid gap-1.5">
+              <legend className="mb-1 text-sm font-medium">Keeps data for</legend>
+              <div className="flex flex-wrap gap-2">
+                {departmentOptions(data.departments).map((d) => {
+                  const on = v.leadDepartmentIds.includes(d.id);
+                  return (
+                    <button type="button" key={d.id} aria-pressed={on}
+                      onClick={() => set("leadDepartmentIds", on ? v.leadDepartmentIds.filter((x) => x !== d.id) : [...v.leadDepartmentIds, d.id])}
+                      className={`rounded-full border px-3 py-1 text-sm ${on ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"}`}>
+                      {d.depth ? "› " : ""}{d.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-xs text-muted-foreground">Sub-departments are included. The lead can add, edit, and delete there.</span>
+            </fieldset>
+          )}
+          <Field label="Reports to" hint="Draws the org chart. Leave blank to show them under their department's owner.">
+            <PersonSelect people={data.people.filter((p) => p.id !== person?.id && p.role !== "viewer")} value={v.managerId} onChange={(id) => set("managerId", id)} allowEmpty emptyLabel="Not set" />
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Hours per week for project work"><Input type="number" min={0} max={80} value={v.weeklyCapacityHours} onChange={(e) => set("weeklyCapacityHours", Number(e.target.value))} /></Field>
             <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={v.active} onChange={(e) => set("active", e.target.checked)} /> Active</label>
@@ -268,4 +295,73 @@ function ConnectionsAdmin() {
       </Card>
     </div>
   );
+}
+
+function DeletionLog() {
+  const { data, repo, run } = useStore();
+  const [rows, setRows] = useState<DeletionEntry[] | null>(null);
+  const [open, setOpen] = useState<DeletionEntry | null>(null);
+  const load = () => run(async () => setRows(await repo.loadDeletions()));
+  // Load once when the tab opens.
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="grid gap-4">
+      <Card className="border-amber-200 bg-amber-50/60">
+        <CardHeader>
+          <CardTitle>Keep this log admin-only in SharePoint</CardTitle>
+          <CardDescription className="text-amber-900">
+            The app shows this page to admins only. To stop others reading the list directly in SharePoint, a site owner turns on
+            item-level permissions once: open the <strong>FSI Deletion Log</strong> list, then Settings (gear), List settings, Advanced
+            settings. Set <strong>Read access</strong> to "Read items that were created by the user" and <strong>Create and Edit
+            access</strong> to "Create items and edit items that were created by the user". People who delete can then add entries but
+            see only their own; site owners see all. Full steps are in the README under "Deletion log".
+          </CardDescription>
+        </CardHeader>
+      </Card>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Every deletion, newest first. Each entry is written before the item is removed.</p>
+        <Button variant="outline" onClick={load}><RefreshCw />Refresh</Button>
+      </div>
+      {rows === null ? <p className="text-sm text-muted-foreground">Loading...</p> : rows.length === 0 ? <Empty>Nothing has been deleted.</Empty> : (
+        <Table>
+          <THead><TR><TH>When</TH><TH>Deleted by</TH><TH>What</TH><TH>Department</TH><TH></TH></TR></THead>
+          <TBody>
+            {rows.map((d) => (
+              <TR key={d.id}>
+                <TD className="whitespace-nowrap text-sm">{formatDate(d.deletedAt.slice(0, 10))}<div className="text-xs text-muted-foreground">{new Date(d.deletedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div></TD>
+                <TD className="text-sm">{personName(data, d.deletedById)}<div className="text-xs text-muted-foreground">{d.deletedByEmail}</div></TD>
+                <TD className="max-w-md text-sm">{d.summary}</TD>
+                <TD className="text-sm">{deptName(data, d.departmentId)}</TD>
+                <TD><Button size="sm" variant="ghost" onClick={() => setOpen(d)}>Details</Button></TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      )}
+      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>What was deleted</DialogTitle></DialogHeader>
+          {open && (
+            <div className="grid gap-2 text-sm">
+              <p>{open.summary}</p>
+              <p className="text-muted-foreground">By {open.deletedByEmail} on {new Date(open.deletedAt).toLocaleString()}. Log entry #{open.id}.</p>
+              <pre className="max-h-96 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">{prettyJson(open.snapshot)}</pre>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function prettyJson(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }

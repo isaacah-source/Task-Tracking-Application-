@@ -45,7 +45,10 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     description: "FSI employees who use the app, with role and weekly capacity.",
     title: (r) => r.name,
     titleField: "name",
-    columns: { email: "text", role: "text", departmentId: "ref", weeklyCapacityHours: "number", active: "bool" },
+    columns: {
+      email: "text", role: "text", departmentId: "ref", weeklyCapacityHours: "number", active: "bool", managerId: "ref",
+      leadDepartmentIds: "json",
+    },
   }),
   outputTypes: def({
     table: "outputTypes",
@@ -147,7 +150,20 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     titleField: "title",
     columns: { meetingType: "text", date: "date", notes: "note", attendeeIds: "json", createdById: "ref" },
   }),
+  deletions: def({
+    table: "deletions",
+    listName: "FSI Deletion Log",
+    description: "Every deletion, with who and when. Admins only: turn on item-level permissions (see README).",
+    title: (r) => r.summary,
+    columns: {
+      entityType: "text", entityId: "ref", summary: "note", projectId: "ref", departmentId: "ref", snapshot: "note",
+      deletedById: "ref", deletedByEmail: "text", deletedAt: "text",
+    },
+  }),
 };
+
+/** Lists only admins read. Left out of the normal load so other people's browsers never fetch them. */
+export const ADMIN_ONLY_TABLES: TableName[] = ["deletions"];
 
 export const TABLES = Object.keys(SCHEMA) as TableName[];
 

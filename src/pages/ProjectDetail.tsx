@@ -5,7 +5,6 @@ import { useStore } from "@/data/store";
 import type { ID, Project, RelationshipGroup, Task } from "@/domain/types";
 import { MEMBERSHIP_LABELS, RELATIONSHIP_GROUPS, RELATIONSHIP_GROUP_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { blockedTaskIds, blockers, topoOrder } from "@/domain/dependencies";
-import { isAdmin } from "@/domain/permissions";
 import { activeStage, stagesFor } from "@/domain/transitions";
 import { formatDate } from "@/domain/dates";
 import { fieldLabel } from "@/data/repository";
@@ -27,7 +26,7 @@ import { involvementFor, syncRelationships } from "@/integrations/relationships/
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
-  const { data, repo, me, today, run } = useStore();
+  const { data, repo, today, run } = useStore();
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
   const project = data.projects.find((p) => p.id === id);
@@ -62,12 +61,12 @@ export default function ProjectDetailPage() {
           </span>
         }
         actions={
-          (isAdmin(me) || project.ownerId === me?.id) && (
+          repo.canDelete(project) && (
             <Button
               variant="outline"
               onClick={async () => {
-                if (!confirm(`Delete "${project.title}" and all its tasks? This cannot be undone.`)) return;
-                if ((await run(() => repo.deleteProject(project.id), "Project deleted")) !== undefined) nav("/projects");
+                if (!confirm(`Delete "${project.title}" and all its tasks? The deletion is recorded in the admin deletion log.`)) return;
+                if (await run(() => repo.deleteProject(project.id).then(() => true), "Project deleted")) nav("/projects");
               }}
             >
               <Trash2 />Delete
@@ -185,6 +184,7 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
 
 function PeopleTab({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const { data, run, repo, me } = useStore();
+  const canDelete = repo.canDelete(project);
   const [invitee, setInvitee] = useState<ID | null>(null);
   const [linkTo, setLinkTo] = useState("");
   const [linkNote, setLinkNote] = useState("");
@@ -213,7 +213,7 @@ function PeopleTab({ project, canEdit }: { project: Project; canEdit: boolean })
                 <span>{personName(data, m.personId)} <Badge variant={m.status === "accepted" ? "success" : m.status === "invited" ? "info" : "muted"}>{MEMBERSHIP_LABELS[m.status]}</Badge></span>
                 <span className="flex gap-1">
                   {m.status === "invited" && <Button size="sm" variant="ghost" asChild><a href={mailto(m.personId, project.title)}>Email</a></Button>}
-                  {(canEdit || m.personId === me?.id) && <Button size="sm" variant="ghost" onClick={() => run(() => repo.removeMembership(m.id))} aria-label="Remove"><Trash2 /></Button>}
+                  {canDelete && <Button size="sm" variant="ghost" onClick={() => run(() => repo.removeMembership(m.id), "Removed")} aria-label="Remove"><Trash2 /></Button>}
                 </span>
               </li>
             ))}
@@ -252,7 +252,7 @@ function PeopleTab({ project, canEdit }: { project: Project; canEdit: boolean })
               return (
                 <li key={l.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                   <span><Link2 className="mr-1 inline h-4 w-4 text-muted-foreground" /><Link to={`/projects/${otherId}`} className="font-medium hover:underline">{other?.title ?? "Deleted project"}</Link>{l.note && <span className="text-muted-foreground"> · {l.note}</span>}</span>
-                  {canEdit && <Button size="sm" variant="ghost" onClick={() => run(() => repo.unlinkProjects(l.id))} aria-label="Unlink"><Trash2 /></Button>}
+                  {(canDelete || (other && repo.canDelete(other))) && <Button size="sm" variant="ghost" onClick={() => run(() => repo.unlinkProjects(l.id), "Unlinked")} aria-label="Unlink"><Trash2 /></Button>}
                 </li>
               );
             })}
@@ -297,6 +297,7 @@ function EventInvites({ eventId, canInvite }: { eventId: ID; canInvite: boolean 
 
 function RelationshipsTab({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const { data, run, repo, tracker, removedInvolvement, toast } = useStore();
+  const canDelete = repo.canDelete(project);
   const [adding, setAdding] = useState(false);
   const links = data.relationshipLinks.filter((r) => r.projectId === project.id);
 
@@ -334,7 +335,7 @@ function RelationshipsTab({ project, canEdit }: { project: Project; canEdit: boo
                           <div className="font-medium">{l.name}</div>
                           <div className="text-xs text-muted-foreground">{l.kind === "contact" ? l.organization : "Organization"}{l.note && ` · ${l.note}`}</div>
                         </div>
-                        {canEdit && (
+                        {canDelete && (
                           <Button size="sm" variant="ghost" aria-label="Unlink" onClick={() => run(async () => {
                             removedInvolvement.push(...involvementFor(repo.data, [l]));
                             await repo.unlinkRelationship(l.id);
@@ -496,6 +497,7 @@ function BudgetTab({ project, canEdit }: { project: Project; canEdit: boolean })
 
 function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const { data, run, repo } = useStore();
+  const canDelete = repo.canDelete(project);
   const stages = stagesFor(project.id, data.stages);
   const [name, setName] = useState("");
   const [owner, setOwner] = useState<ID | null>(null);
@@ -528,8 +530,8 @@ function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean 
                     <CheckCircle2 />Complete{nextAfter(s.id) ? " and hand off" : ""}
                   </Button>
                 )}
-                {canEdit && s.status === "pending" && (
-                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => run(() => repo.removeStage(s.id))}><Trash2 />Remove</Button>
+                {canDelete && s.status === "pending" && (
+                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => run(() => repo.removeStage(s.id), "Stage removed")}><Trash2 />Remove</Button>
                 )}
               </div>
               {i < stages.length - 1 && <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />}
