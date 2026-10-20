@@ -478,10 +478,12 @@ export class Repository {
 
   // ---- Relationships ----
 
-  async linkRelationship(input: Omit<RelationshipLink, "id" | "syncedAt">): Promise<void> {
+  /** Links a tracker contact to a project. Returns the existing link if there already is one. */
+  async linkRelationship(input: Omit<RelationshipLink, "id" | "syncedAt">): Promise<RelationshipLink> {
     this.requireEdit(this.project(input.projectId));
-    if (this.data.relationshipLinks.some((r) => r.projectId === input.projectId && r.externalId === input.externalId)) return;
-    await this.create("relationshipLinks", { ...input, syncedAt: null });
+    const existing = this.data.relationshipLinks.find((r) => r.projectId === input.projectId && r.externalId === input.externalId);
+    if (existing) return existing;
+    return this.create("relationshipLinks", { ...input, syncedAt: null });
   }
 
   async unlinkRelationship(id: ID): Promise<void> {

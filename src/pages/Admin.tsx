@@ -265,7 +265,11 @@ function ConnectionsAdmin() {
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           <p>Connected to: <span className="font-medium">{tracker.name}</span></p>
-          <p className="text-muted-foreground">The tracker has no API yet, so a sample stand-in answers. Swapping in the real tracker means writing one adapter (see README, "Relationship Tracker").</p>
+          <p className="text-muted-foreground">
+            {mode === "demo"
+              ? "Demo mode uses sample contacts. The live app reads the tracker's Excel workbook."
+              : "Reads contacts from the tracker workbook's Master tab and writes each contact's FSI projects to its \"FSI Projects\" tab. Links and unlinks are sent right away; Sync also refreshes names and catches anything missed."}
+          </p>
           <Button className="w-fit" onClick={() => run(async () => setResult(await syncRelationships(tracker, repo.data, (id, p) => repo.updateRelationshipLink(id, p), removedInvolvement.splice(0))))}>
             <RefreshCw />Sync all projects now
           </Button>

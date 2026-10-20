@@ -22,7 +22,7 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { groupForType, type ExternalContact, type ExternalOrganization } from "@/integrations/relationships/adapter";
-import { involvementFor, syncRelationships } from "@/integrations/relationships/sync";
+import { involvementFor, pushNow, syncRelationships } from "@/integrations/relationships/sync";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -337,8 +337,10 @@ function RelationshipsTab({ project, canEdit }: { project: Project; canEdit: boo
                         </div>
                         {canDelete && (
                           <Button size="sm" variant="ghost" aria-label="Unlink" onClick={() => run(async () => {
-                            removedInvolvement.push(...involvementFor(repo.data, [l]));
+                            const gone = involvementFor(repo.data, [l]).map((i) => ({ ...i, active: false }));
                             await repo.unlinkRelationship(l.id);
+                            const sent = await pushNow(tracker, gone, removedInvolvement);
+                            toast(sent ? "Unlinked here and in the tracker" : "Unlinked. The tracker will be updated at the next sync.");
                           })}><Trash2 /></Button>
                         )}
                       </li>
@@ -356,8 +358,9 @@ function RelationshipsTab({ project, canEdit }: { project: Project; canEdit: boo
 }
 
 function LinkContactDialog({ projectId, onClose }: { projectId: ID; onClose: () => void }) {
-  const { tracker, run, repo, data } = useStore();
+  const { tracker, run, repo, data, removedInvolvement, toast } = useStore();
   const [contacts, setContacts] = useState<ExternalContact[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<ExternalOrganization[]>([]);
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<{ externalId: string; kind: "contact" | "organization"; name: string; organization: string; type: string } | null>(null);
@@ -365,7 +368,10 @@ function LinkContactDialog({ projectId, onClose }: { projectId: ID; onClose: () 
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    Promise.all([tracker.listContacts(), tracker.listOrganizations()]).then(([c, o]) => (setContacts(c), setOrgs(o)));
+    Promise.all([tracker.listContacts(), tracker.listOrganizations()]).then(
+      ([c, o]) => (setContacts(c), setOrgs(o)),
+      (e: Error) => setLoadError(e.message),
+    );
   }, [tracker]);
 
   const linked = new Set(data.relationshipLinks.filter((r) => r.projectId === projectId).map((r) => r.externalId));
@@ -386,7 +392,7 @@ function LinkContactDialog({ projectId, onClose }: { projectId: ID; onClose: () 
           <div className="grid gap-3">
             <Input autoFocus placeholder="Search by name, organization, or type" value={q} onChange={(e) => setQ(e.target.value)} />
             <div className="max-h-80 overflow-y-auto rounded-md border">
-              {contacts === null ? <p className="p-3 text-sm text-muted-foreground">Loading from the tracker...</p> : options.length === 0 ? <p className="p-3 text-sm text-muted-foreground">No matches.</p> : (
+              {loadError ? <p className="p-3 text-sm text-red-700">{loadError}</p> : contacts === null ? <p className="p-3 text-sm text-muted-foreground">Loading from the tracker...</p> : options.length === 0 ? <p className="p-3 text-sm text-muted-foreground">No matches.</p> : (
                 <ul className="divide-y">
                   {options.map((o) => (
                     <li key={o.externalId}>
@@ -406,8 +412,11 @@ function LinkContactDialog({ projectId, onClose }: { projectId: ID; onClose: () 
             onSubmit={async (e) => {
               e.preventDefault();
               if (!group) return;
-              const ok = await run(() => repo.linkRelationship({ projectId, externalId: pick.externalId, kind: pick.kind, name: pick.name, organization: pick.organization, group, note: note.trim() }).then(() => true), "Linked");
-              if (ok) onClose();
+              const link = await run(() => repo.linkRelationship({ projectId, externalId: pick.externalId, kind: pick.kind, name: pick.name, organization: pick.organization, group, note: note.trim() }));
+              if (!link) return;
+              onClose();
+              const sent = await pushNow(tracker, involvementFor(repo.data, [link]), removedInvolvement);
+              toast(sent ? "Linked here and in the tracker" : "Linked. The tracker will be updated at the next sync.");
             }}
           >
             <p className="text-sm"><span className="font-medium">{pick.name}</span> <span className="text-muted-foreground">({pick.type})</span></p>

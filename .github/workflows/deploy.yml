@@ -3,6 +3,7 @@ name: Deploy to GitHub Pages
 # Publishes the app to https://<owner>.github.io/<repo>/ on every push to main.
 # Needs, under Settings > Secrets and variables > Actions > Variables:
 #   FSI_TENANT_ID, FSI_CLIENT_ID, FSI_SITE_URL, FSI_SETUP_ADMINS (optional, comma-separated)
+#   FSI_TRACKER_FOLDER_URL, FSI_TRACKER_WORKBOOK (optional: connect the Relationship Tracker)
 # and Settings > Pages > Source set to "GitHub Actions".
 on:
   push:
@@ -35,6 +36,8 @@ jobs:
           CLIENT: ${{ vars.FSI_CLIENT_ID }}
           SITE: ${{ vars.FSI_SITE_URL }}
           ADMINS: ${{ vars.FSI_SETUP_ADMINS }}
+          TRACKER: ${{ vars.FSI_TRACKER_FOLDER_URL }}
+          TRACKER_BOOK: ${{ vars.FSI_TRACKER_WORKBOOK }}
         run: |
           node -e '
             const e = process.env;
@@ -44,6 +47,8 @@ jobs:
             }
             const cfg = { tenantId: e.TENANT.trim(), clientId: e.CLIENT.trim(), siteUrl: e.SITE.trim() };
             if (e.ADMINS) cfg.setupAdmins = e.ADMINS.split(",").map((s) => s.trim()).filter(Boolean);
+            if (e.TRACKER) cfg.trackerFolderUrl = e.TRACKER.trim();
+            if (e.TRACKER_BOOK) cfg.trackerWorkbookName = e.TRACKER_BOOK.trim();
             const fs = require("fs");
             fs.mkdirSync("public", { recursive: true });
             fs.writeFileSync("public/config.json", JSON.stringify(cfg, null, 2));

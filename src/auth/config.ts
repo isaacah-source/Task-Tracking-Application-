@@ -11,6 +11,14 @@ export interface AppConfig {
   siteUrl: string;
   /** Emails allowed to run first-time setup. When omitted, anyone who can edit the site can. */
   setupAdmins?: string[];
+  /**
+   * Sharing link to the folder holding the Relationship Tracker workbook (the same link the
+   * Relationship Tracker app uses). Without it, the Relationships tab says the tracker is not
+   * connected.
+   */
+  trackerFolderUrl?: string;
+  /** The tracker workbook's file name, when the folder holds more than one workbook. */
+  trackerWorkbookName?: string;
   /** Run on built-in sample data with no sign-in. Nothing is saved. */
   demo?: boolean;
 }

@@ -9,6 +9,8 @@ import { GraphListsBackend } from "@/data/graphBackend";
 import { buildSeed, STANDARD_DEPARTMENTS, STANDARD_OUTPUT_TYPES } from "@/data/seed";
 import { today } from "@/domain/dates";
 import { MockRelationshipTracker } from "@/integrations/relationships/mock";
+import { UnconfiguredRelationshipTracker, WorkbookRelationshipTracker } from "@/integrations/relationships/workbook";
+import type { RelationshipTracker } from "@/integrations/relationships/adapter";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,10 +31,8 @@ type Boot =
   | { state: "error"; message: string }
   | { state: "signin"; auth: Auth }
   | { state: "setup"; repo: Repository; auth: Auth; cfg: AppConfig; missing: string[] }
-  | { state: "ready"; repo: Repository; mode: "demo" | "sharepoint"; name: string; auth: Auth | null };
+  | { state: "ready"; repo: Repository; mode: "demo" | "sharepoint"; name: string; auth: Auth | null; tracker: RelationshipTracker };
 
-// The Relationship Tracker has no API yet, so the mock stands in everywhere.
-const tracker = new MockRelationshipTracker();
 
 async function start(): Promise<Boot> {
   const cfg = await loadConfig();
@@ -42,7 +42,8 @@ async function start(): Promise<Boot> {
     const me = data.people.find((p) => p.role === "admin") ?? null;
     const repo = new Repository(backend, me, me?.email ?? "");
     await repo.refresh();
-    return { state: "ready", repo, mode: "demo", name: me?.name ?? "Demo", auth: null };
+    // Demo mode uses sample contacts; nothing is written anywhere.
+    return { state: "ready", repo, mode: "demo", name: me?.name ?? "Demo", auth: null, tracker: new MockRelationshipTracker() };
   }
 
   const auth = new Auth(cfg);
@@ -55,7 +56,10 @@ async function start(): Promise<Boot> {
   if (missing.length) return { state: "setup", repo, auth, cfg, missing };
   await repo.refresh();
   repo.me = repo.data.people.find((p) => p.email.toLowerCase() === email && p.active) ?? null;
-  return { state: "ready", repo, mode: "sharepoint", name: account.name ?? email, auth };
+  const tracker = cfg.trackerFolderUrl
+    ? new WorkbookRelationshipTracker(cfg.trackerFolderUrl, cfg.trackerWorkbookName, auth.token)
+    : new UnconfiguredRelationshipTracker();
+  return { state: "ready", repo, mode: "sharepoint", name: account.name ?? email, auth, tracker };
 }
 
 export default function App() {
@@ -139,7 +143,7 @@ export default function App() {
   }
 
   return (
-    <DataProvider repo={boot.repo} mode={boot.mode} myName={boot.name} tracker={tracker} signOut={() => boot.auth?.signOut()}>
+    <DataProvider repo={boot.repo} mode={boot.mode} myName={boot.name} tracker={boot.tracker} signOut={() => boot.auth?.signOut()}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
