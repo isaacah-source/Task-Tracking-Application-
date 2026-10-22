@@ -19,7 +19,8 @@ export class GraphTeamsTranscription implements TeamsTranscription {
 
   private async call(method: string, path: string, scopes: string[], body?: unknown): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
-      const headers: Record<string, string> = { Authorization: `Bearer ${await this.token(scopes)}` };
+      const token = await this.token(scopes);
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       if (body !== undefined) headers["Content-Type"] = "application/json";
       const res = await this.fetchFn(`${GRAPH}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
       if (res.ok) return res;
@@ -29,9 +30,17 @@ export class GraphTeamsTranscription implements TeamsTranscription {
       }
       const err = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
       const code = err.error?.code ?? "";
+      // Teams' own words, so the cause can be told apart from the usual ones listed here.
+      const said = err.error?.message ? ` Teams said: "${err.error.message}"${code ? ` (${code})` : ""}.` : code ? ` Teams said: ${code}.` : "";
       if (res.status === 401 || res.status === 403 || code === "accessDenied") {
+        const granted = grantedScopes(token);
+        const missing = granted ? scopes.filter((x) => !granted.includes(x.toLowerCase())) : [];
+        if (missing.length) {
+          throw new GraphError(res.status, code,
+            `Your Microsoft sign-in does not include the ${missing.join(", ")} permission yet. Sign out of the app and sign in again. If this keeps happening, a Microsoft 365 admin needs to grant admin consent for it (see README, "Teams transcription").${said}`);
+        }
         throw new GraphError(res.status, code,
-          "Teams refused. Only the meeting's organizer can turn on transcription or read the transcript, and a Microsoft 365 admin must approve the app's Teams permissions (see README, \"Teams transcription\").");
+          `Teams refused. Only the meeting's organizer can turn on transcription or read the transcript.${said}`);
       }
       throw new GraphError(res.status, code, err.error?.message || `Microsoft Graph error ${res.status}`);
     }
@@ -70,5 +79,16 @@ export class GraphTeamsTranscription implements TeamsTranscription {
       parts.push(vttToText(await content.text()));
     }
     return parts.filter(Boolean).join("\n\n---\n\n");
+  }
+}
+
+/** The delegated permissions in an access token ("scp" claim), lower-cased; null if unreadable. */
+export function grantedScopes(token: string): string[] | null {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), "="))) as { scp?: string };
+    return claims.scp ? claims.scp.toLowerCase().split(" ") : null;
+  } catch {
+    return null;
   }
 }

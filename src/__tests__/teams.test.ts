@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isTeamsJoinUrl, vttToText } from "@/integrations/teams/adapter";
-import { GraphTeamsTranscription, MEETING_SCOPES, TRANSCRIPT_SCOPES } from "@/integrations/teams/graph";
+import { GraphTeamsTranscription, MEETING_SCOPES, TRANSCRIPT_SCOPES, grantedScopes } from "@/integrations/teams/graph";
 import { MOCK_VTT, MockTeamsTranscription } from "@/integrations/teams/mock";
 import { MemoryBackend } from "@/data/memoryBackend";
 import { Repository } from "@/data/repository";
@@ -94,9 +94,18 @@ describe("GraphTeamsTranscription", () => {
     expect(g.calls.some((c) => c.url.endsWith("/content?$format=text/vtt"))).toBe(true);
   });
 
-  it("explains a refusal in plain words", async () => {
+  it("explains a refusal in plain words and passes on what Teams said", async () => {
     const g = fakeTeams({ deny: true });
-    await expect(new GraphTeamsTranscription(token, g.fetchFn).fetchTranscript("M1")).rejects.toThrow(/organizer.*admin/);
+    await expect(new GraphTeamsTranscription(token, g.fetchFn).fetchTranscript("M1")).rejects.toThrow(/organizer.*Teams said: "no" \(Forbidden\)/);
+  });
+
+  it("says so when the sign-in lacks the transcript permission", async () => {
+    const g = fakeTeams({ deny: true });
+    const jwt = (scp: string) => `h.${btoa(JSON.stringify({ scp })).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")}.s`;
+    const t = new GraphTeamsTranscription(async () => jwt("User.Read OnlineMeetings.ReadWrite"), g.fetchFn);
+    await expect(t.fetchTranscript("M1")).rejects.toThrow(/does not include the OnlineMeetingTranscript.Read.All permission.*Sign out/);
+    expect(grantedScopes(jwt("User.Read Sites.ReadWrite.All"))).toEqual(["user.read", "sites.readwrite.all"]);
+    expect(grantedScopes("not-a-jwt")).toBeNull();
   });
 });
 
