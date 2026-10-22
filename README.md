@@ -43,12 +43,14 @@ loads sample departments, people, and projects. Nothing is saved.
 - **Meeting notes mode.** Take notes and assign work during a meeting. While you fill in an
   assignment, the app checks it against existing commitments: other deadlines and events
   for that person, their hours against capacity, the project budget, and task order. When
-  someone is over capacity, it suggests colleagues with room.
+  someone is over capacity, it suggests colleagues with room. Notes are filed by department.
+  Admins read every note; everyone else reads their own department's notes (with its
+  sub-departments, and departments they own or lead) plus notes from meetings they were in.
 - **Handoffs.** Give a project ordered stages, each with its own owner and department.
   Completing a stage hands the project to the next owner. For example, when Research
   completes, Comms takes over for rollout. Each stage can have a **handoff date** and a
-  **handoff milestone**: pick one of the project's tasks, or type a new name to create a
-  milestone due on the handoff date. When that task is marked done, the handoff happens on
+  **handoff milestone**: choose an existing task from a list grouped by project (this
+  project first; any project works). When that task is marked done, the handoff happens on
   its own and the stage's note records why.
 - **People and events.** Invite FSI colleagues to projects and to events inside them. Invited
   people see the invitation on their My work page.
@@ -265,20 +267,31 @@ Teams meeting option), and after the meeting reads the transcript Teams made.
      link. Only the meeting's organizer can do this.
 2. Open the meeting in Teams from the dialog and share the display screen. Recording and
    transcription start when the meeting starts.
+   Or, on **Meeting notes**, click **Show my Teams meetings** under "From your Teams calendar",
+   tick the meetings you organize that should be transcribed, choose the department, and click
+   **Transcribe and take notes**. Each one gets a meeting note.
 3. After the meeting ends, open the meeting note (the dialog links to it, or **Meeting notes**)
    and click **Get transcript**. Teams usually needs a few minutes after the meeting ends.
    Only the organizer can fetch it. The transcript is saved on the meeting note, separate from
-   the typed notes.
+   the typed notes. Opening **Meeting notes** also fetches, quietly, any ready transcripts for
+   Teams meetings you set up whose day has come.
 
 To connect it:
 
 1. In the Entra app registration (**API permissions**), add the Microsoft Graph delegated
-   permissions `OnlineMeetings.ReadWrite` and `OnlineMeetingTranscript.Read.All`, then click
-   **Grant admin consent**.
+   permissions `OnlineMeetings.ReadWrite`, `OnlineMeetingTranscript.Read.All`, and
+   `Calendars.Read` (for the calendar list), then click **Grant admin consent**.
 2. In the Teams admin center, the meeting policy for the people running meetings must allow
    **Transcription** and **Recording**.
-3. An admin clicks **Update SharePoint lists** on Admin, Connections, to add the three new
-   FSI Meeting Notes columns (Teams Meeting, Teams Join Url, Transcript).
+3. In the Teams admin center, under **Meetings**, **Meeting settings**, turn on **Transcript
+   API access** (Microsoft Graph access) and **Include speaker attribution**. Without it, Teams
+   answers "Graph API access to transcripts is disabled for this tenant."
+4. An admin clicks **Update SharePoint lists** on Admin, Connections, to add the new FSI
+   Meeting Notes columns (Department, Teams Meeting, Teams Join Url, Transcript).
+
+**Who can read meeting notes** is enforced by the app. The notes still sit in the FSI Meeting
+Notes list, which every site member can open directly in SharePoint. To make the department
+rule hold there too, the list needs item-level permissions per department.
 
 Recordings and transcripts stay in Teams and the organizer's OneDrive under Microsoft 365's
 normal retention. The app keeps a text copy on the meeting note. Long transcripts are cut at

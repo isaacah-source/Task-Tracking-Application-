@@ -188,7 +188,10 @@ export function buildSeed(today: string): DataSet {
   ];
 
   data.meetings = [
-    { id: "1", title: "Daily stand-up", meetingType: "daily", date: d(-1), notes: "Paper 1 sections 1-3 running late. Venue booking for wargame still open.", attendeeIds: ["1", "2", "3", "4"], createdById: "1", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
+    { id: "1", title: "Daily stand-up", meetingType: "daily", date: d(-1), notes: "Paper 1 sections 1-3 running late. Venue booking for wargame still open.", attendeeIds: ["1", "2", "3", "4"], createdById: "1", departmentId: "4", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
+    { id: "2", title: "Research weekly", meetingType: "weekly", date: d(-3), notes: "Wargame scenario draft reviewed. Paper 1 reviewers confirmed.", attendeeIds: ["3", "5", "6"], createdById: "3", departmentId: "2", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
+    { id: "3", title: "Comms planning", meetingType: "weekly", date: d(-2), notes: "Op-ed outlets shortlisted.", attendeeIds: ["2", "7"], createdById: "2", departmentId: "1", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
+    { id: "4", title: "Ops monthly review", meetingType: "monthly", date: d(-8), notes: "Dinner budget raised. Fellowship call drafted.", attendeeIds: ["4", "9"], createdById: "4", departmentId: "3", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
   ];
 
   return data;

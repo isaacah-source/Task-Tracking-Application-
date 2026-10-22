@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, UserCheck } from "lucide-react";
+import { Captions, Plus, UserCheck } from "lucide-react";
 import { useStore } from "@/data/store";
 import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
 import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domain/conflicts";
-import { canWrite } from "@/domain/permissions";
+import { canWrite, departmentTree, isAdmin } from "@/domain/permissions";
 import { formatDate, formatShort } from "@/domain/dates";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
-import { DueFlag, Empty, Field, PageHeader, PersonSelect, personName } from "@/components/common";
+import { DepartmentSelect, DueFlag, Empty, Field, PageHeader, PersonSelect, departmentOptions, deptName, personName } from "@/components/common";
+import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,37 +22,26 @@ import { Input, Select, Textarea } from "@/components/ui/input";
  * is saved.
  */
 export default function MeetingPage() {
-  const { data, me } = useStore();
-  const meetings = [...data.meetings].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
+  const { data, me, repo } = useStore();
   // ?id= opens a meeting directly (the meeting display links here).
   const [params, setParams] = useSearchParams();
   const currentId = params.get("id");
   const setCurrentId = (id: ID | null) => setParams(id ? { id } : {});
-  const current = data.meetings.find((m) => m.id === currentId) ?? null;
+  const visible = useMemo(() => repo.visibleMeetings(), [repo, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const current = visible.find((m) => m.id === currentId) ?? null;
+  useCaptureTranscripts();
 
   if (!current) {
     return (
       <>
         <PageHeader title="Meeting notes" description="Take notes and assign owners as decisions happen. The app checks each assignment for clashes right away." />
+        {currentId && <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">That meeting note is not shared with you.</p>}
         <div className="grid gap-6 lg:grid-cols-2">
-          {canWrite(me) && <NewMeeting onCreated={setCurrentId} />}
-          <Card>
-            <CardHeader><CardTitle>Recent meetings</CardTitle></CardHeader>
-            <CardContent>
-              {meetings.length === 0 ? <Empty>No meetings yet.</Empty> : (
-                <ul className="divide-y">
-                  {meetings.slice(0, 15).map((m) => (
-                    <li key={m.id}>
-                      <button className="flex w-full items-center justify-between gap-2 py-2.5 text-left hover:bg-accent/50" onClick={() => setCurrentId(m.id)}>
-                        <span className="font-medium">{m.title}</span>
-                        <span className="text-xs text-muted-foreground">{MEETING_TYPE_LABELS[m.meetingType]} · {formatDate(m.date)}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <div className="grid content-start gap-6">
+            {canWrite(me) && <NewMeeting onCreated={setCurrentId} />}
+            {canWrite(me) && <TeamsCalendarCard onOpen={setCurrentId} />}
+          </div>
+          <MeetingsByDepartment meetings={visible} onOpen={setCurrentId} />
         </div>
       </>
     );
@@ -60,12 +50,68 @@ export default function MeetingPage() {
   return <MeetingRoom key={current.id} meeting={current} onLeave={() => setCurrentId(null)} canEdit={canWrite(me)} />;
 }
 
+/** Notes grouped by department, newest first in each; "No department" last. */
+function MeetingsByDepartment({ meetings, onOpen }: { meetings: MeetingNote[]; onOpen: (id: ID) => void }) {
+  const { data, me } = useStore();
+  const [dept, setDept] = useState<ID | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const scope = dept ? departmentTree(dept, data.departments) : null;
+  const shown = meetings.filter((m) => !scope || (m.departmentId && scope.has(m.departmentId)));
+  // Department order follows the department list (parents before their sub-departments).
+  const order = departmentOptions(data.departments).map((o) => o.id);
+  const groups = [...new Set(shown.map((m) => m.departmentId ?? ""))]
+    .sort((a, b) => (a === "" ? 1 : b === "" ? -1 : order.indexOf(a) - order.indexOf(b)))
+    .map((key) => ({
+      key,
+      label: key ? deptName(data, key) : "No department",
+      notes: shown.filter((m) => (m.departmentId ?? "") === key).sort((x, y) => y.date.localeCompare(x.date) || Number(y.id) - Number(x.id)),
+    }));
+  const LIMIT = 6;
+
+  return (
+    <Card className="h-fit">
+      <CardHeader>
+        <CardTitle>Meeting notes by department</CardTitle>
+        <CardDescription>
+          {isAdmin(me) ? "As an admin you see every department's notes." : "You see your department's notes and notes from meetings you were in."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <DepartmentSelect departments={data.departments} value={dept} onChange={setDept} allowEmpty emptyLabel="All departments" />
+        {groups.length === 0 ? <Empty>No meetings yet.</Empty> : groups.map((g) => (
+          <section key={g.key}>
+            <h3 className="mb-1 flex items-baseline justify-between text-sm font-semibold">
+              {g.label}<span className="text-xs font-normal text-muted-foreground">{g.notes.length} meeting{g.notes.length === 1 ? "" : "s"}</span>
+            </h3>
+            <ul className="divide-y rounded-md border">
+              {(open[g.key] ? g.notes : g.notes.slice(0, LIMIT)).map((m) => (
+                <li key={m.id}>
+                  <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-accent/50" onClick={() => onOpen(m.id)}>
+                    <span className="font-medium">{m.title}{m.teamsMeetingId && <Captions className="ml-1.5 inline h-3.5 w-3.5 text-muted-foreground" aria-label="Teams transcription" />}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{MEETING_TYPE_LABELS[m.meetingType]} · {formatDate(m.date)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {g.notes.length > LIMIT && (
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setOpen((o) => ({ ...o, [g.key]: !o[g.key] }))}>
+                {open[g.key] ? "Show fewer" : `Show all ${g.notes.length}`}
+              </Button>
+            )}
+          </section>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 function NewMeeting({ onCreated }: { onCreated: (id: ID) => void }) {
   const { data, me, today, run, repo } = useStore();
   const [title, setTitle] = useState("Daily stand-up");
   const [type, setType] = useState<MeetingType>("daily");
   const [date, setDate] = useState(today);
   const [attendees, setAttendees] = useState<ID[]>(me ? [me.id] : []);
+  const [dept, setDept] = useState<ID | null>(me?.departmentId ?? null);
   return (
     <Card>
       <CardHeader><CardTitle>Start a meeting</CardTitle></CardHeader>
@@ -74,7 +120,7 @@ function NewMeeting({ onCreated }: { onCreated: (id: ID) => void }) {
           className="grid gap-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            const m = await run(() => repo.createMeeting({ title: title.trim() || MEETING_TYPE_LABELS[type], meetingType: type, date, notes: "", attendeeIds: attendees }));
+            const m = await run(() => repo.createMeeting({ title: title.trim() || MEETING_TYPE_LABELS[type], meetingType: type, date, notes: "", attendeeIds: attendees, departmentId: dept }));
             if (m) onCreated(m.id);
           }}
         >
@@ -90,7 +136,12 @@ function NewMeeting({ onCreated }: { onCreated: (id: ID) => void }) {
             </Field>
             <Field label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
           </div>
-          <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+            <Field label="Department" hint="Its people can read the notes, as can everyone in the meeting.">
+              <DepartmentSelect departments={data.departments} value={dept} onChange={setDept} allowEmpty emptyLabel="Attendees only" />
+            </Field>
+          </div>
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">Who is here</legend>
             <div className="flex flex-wrap gap-2">
@@ -165,7 +216,7 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
     <>
       <PageHeader
         title={meeting.title}
-        description={`${MEETING_TYPE_LABELS[meeting.meetingType]} · ${formatDate(meeting.date)} · ${meeting.attendeeIds.map((id) => personName(data, id)).join(", ")}`}
+        description={`${meeting.departmentId ? `${deptName(data, meeting.departmentId)} · ` : ""}${MEETING_TYPE_LABELS[meeting.meetingType]} · ${formatDate(meeting.date)} · ${meeting.attendeeIds.map((id) => personName(data, id)).join(", ")}`}
         actions={
           <>
             <TeamsTranscribeButton title={meeting.title} note={meeting} />
@@ -174,6 +225,18 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
           </>
         }
       />
+      {canEdit && (
+        <div className="mb-4 flex max-w-md items-center gap-2 text-sm">
+          <span className="shrink-0 text-muted-foreground">Department:</span>
+          <DepartmentSelect
+            departments={data.departments}
+            value={meeting.departmentId}
+            onChange={(id) => run(() => repo.updateMeeting(meeting.id, { departmentId: id }), "Department saved")}
+            allowEmpty
+            emptyLabel="None (attendees only)"
+          />
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         <Card className="flex flex-col">
           <CardHeader className="flex-row items-center justify-between">

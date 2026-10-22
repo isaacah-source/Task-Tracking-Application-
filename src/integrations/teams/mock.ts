@@ -1,4 +1,4 @@
-import type { TeamsMeeting, TeamsTranscription } from "./adapter";
+import type { CalendarMeeting, TeamsMeeting, TeamsTranscription } from "./adapter";
 import { vttToText } from "./adapter";
 
 /** Sample transcript in Teams' format. All names are fictional. */
@@ -21,7 +21,11 @@ export class MockTeamsTranscription implements TeamsTranscription {
   private next = 1;
 
   /** Demo mode: transcripts are ready right away so the flow can be tried end to end. */
-  constructor(private readyImmediately = false) {}
+  constructor(private readyImmediately = false, private calendar: CalendarMeeting[] = sampleCalendar(new Date())) {}
+
+  async listCalendar(from: Date, to: Date): Promise<CalendarMeeting[]> {
+    return this.calendar.filter((m) => m.end >= from.toISOString() && m.start <= to.toISOString()).sort((a, b) => a.start.localeCompare(b.start));
+  }
 
   async createMeeting(subject: string): Promise<TeamsMeeting> {
     const id = `demo-meeting-${this.next++}`;
@@ -51,4 +55,26 @@ export class MockTeamsTranscription implements TeamsTranscription {
     if (!m) throw new Error("Teams did not find that meeting.");
     return m.ended ? vttToText(MOCK_VTT) : null;
   }
+}
+
+/** A few Teams meetings around `now` for demo mode. All names are fictional. */
+export function sampleCalendar(now: Date): CalendarMeeting[] {
+  const at = (days: number, hour: number, minutes = 60) => {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() + days);
+    d.setUTCHours(hour, 0, 0, 0);
+    return { start: d.toISOString(), end: new Date(d.getTime() + minutes * 60_000).toISOString() };
+  };
+  const m = (id: string, subject: string, when: { start: string; end: string }, isOrganizer: boolean, organizer: [string, string], attendees: string[]) => ({
+    eventId: id, subject, ...when, joinUrl: `https://teams.microsoft.com/l/meetup-join/${id}`, organizerName: organizer[0],
+    organizerEmail: organizer[1], isOrganizer, attendeeEmails: attendees,
+  });
+  const ike: [string, string] = ["Ike Harris", "ike@example.org"];
+  return [
+    m("cal-1", "Leadership sync", at(-1, 15), true, ike, ["susan@example.org", "aaron@example.org", "jeremy@example.org"]),
+    m("cal-2", "Research weekly", at(1, 14), true, ike, ["aaron@example.org", "dana@example.org", "priya@example.org"]),
+    m("cal-3", "Board prep", at(2, 16, 90), true, ike, ["jeremy@example.org"]),
+    m("cal-4", "Partner call: Sample AI Lab", at(3, 17, 30), false, ["Sample Partner", "partner@example.org"], ["ike@example.org"]),
+    m("cal-5", "All-hands", at(6, 15), true, ike, ["susan@example.org", "aaron@example.org", "jeremy@example.org", "dana@example.org"]),
+  ];
 }

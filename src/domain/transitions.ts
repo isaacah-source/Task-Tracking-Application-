@@ -47,12 +47,12 @@ export function completeStage(project: Project, stageId: ID, stages: Stage[], no
 }
 
 /**
- * The active stage whose handoff milestone is this task, when the task is done. Completing
- * that task hands the project on automatically.
+ * Active stages, in any project, whose handoff milestone is this task, when the task is done.
+ * Completing that task hands those projects on automatically.
  */
-export function stageTriggeredBy(task: Task, stages: Stage[]): Stage | null {
-  if (task.status !== "done") return null;
-  return stagesFor(task.projectId, stages).find((s) => s.status === "active" && s.handoffTaskId === task.id) ?? null;
+export function stagesTriggeredBy(task: Task, stages: Stage[]): Stage[] {
+  if (task.status !== "done") return [];
+  return stages.filter((s) => s.status === "active" && s.handoffTaskId === task.id);
 }
 
 /** The project's earliest open milestone task, or null. */

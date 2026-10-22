@@ -2,10 +2,12 @@
 // meeting's organizer can change its options or read its transcript.
 
 import { GRAPH, GraphError, type TokenFn } from "@/data/graphBackend";
-import { vttToText, type TeamsMeeting, type TeamsTranscription } from "./adapter";
+import { vttToText, type CalendarMeeting, type TeamsMeeting, type TeamsTranscription } from "./adapter";
 
 /** Create meetings and change their options. */
 export const MEETING_SCOPES = ["OnlineMeetings.ReadWrite"];
+/** Read the person's calendar, to list their Teams meetings. */
+export const CALENDAR_SCOPES = ["Calendars.Read"];
 /** Read transcripts. Needs admin consent in Entra. */
 export const TRANSCRIPT_SCOPES = ["OnlineMeetingTranscript.Read.All"];
 
@@ -17,10 +19,10 @@ export class GraphTeamsTranscription implements TeamsTranscription {
 
   constructor(private token: TokenFn, private fetchFn: Fetch = (...a) => fetch(...a)) {}
 
-  private async call(method: string, path: string, scopes: string[], body?: unknown): Promise<Response> {
+  private async call(method: string, path: string, scopes: string[], body?: unknown, extra: Record<string, string> = {}): Promise<Response> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.token(scopes);
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}`, ...extra };
       if (body !== undefined) headers["Content-Type"] = "application/json";
       const res = await this.fetchFn(`${GRAPH}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
       if (res.ok) return res;
@@ -48,6 +50,37 @@ export class GraphTeamsTranscription implements TeamsTranscription {
 
   private toMeeting(m: GraphMeeting): TeamsMeeting {
     return { id: m.id, joinUrl: m.joinWebUrl, subject: m.subject ?? "" };
+  }
+
+  async listCalendar(from: Date, to: Date): Promise<CalendarMeeting[]> {
+    type Ev = {
+      id: string; subject: string | null; isCancelled?: boolean; isOrganizer?: boolean; isOnlineMeeting?: boolean;
+      start: { dateTime: string }; end: { dateTime: string }; onlineMeeting?: { joinUrl?: string } | null;
+      organizer?: { emailAddress?: { name?: string; address?: string } };
+      attendees?: { emailAddress?: { address?: string } }[];
+    };
+    const select = "subject,start,end,isCancelled,isOrganizer,isOnlineMeeting,onlineMeeting,organizer,attendees";
+    let path: string | null =
+      `/me/calendarView?startDateTime=${from.toISOString()}&endDateTime=${to.toISOString()}&$select=${select}&$orderby=start/dateTime&$top=100`;
+    const out: CalendarMeeting[] = [];
+    // Times come back in UTC without a zone marker when asked for UTC.
+    const utc = (s: string) => (/[zZ]|[+-]\d\d:\d\d$/.test(s) ? s : `${s.replace(/\.\d+$/, "")}Z`);
+    for (let page = 0; path && page < 10; page++) {
+      const res = await this.call("GET", path, CALENDAR_SCOPES, undefined, { Prefer: 'outlook.timezone="UTC"' });
+      const body = (await res.json()) as { value: Ev[]; "@odata.nextLink"?: string };
+      for (const e of body.value) {
+        const joinUrl = e.onlineMeeting?.joinUrl;
+        if (!e.isOnlineMeeting || !joinUrl || e.isCancelled) continue;
+        out.push({
+          eventId: e.id, subject: e.subject ?? "", start: utc(e.start.dateTime), end: utc(e.end.dateTime), joinUrl,
+          organizerName: e.organizer?.emailAddress?.name ?? "", organizerEmail: (e.organizer?.emailAddress?.address ?? "").toLowerCase(),
+          isOrganizer: !!e.isOrganizer,
+          attendeeEmails: (e.attendees ?? []).map((a) => (a.emailAddress?.address ?? "").toLowerCase()).filter(Boolean),
+        });
+      }
+      path = body["@odata.nextLink"]?.replace(GRAPH, "") ?? null;
+    }
+    return out;
   }
 
   async createMeeting(subject: string, start: Date, end: Date): Promise<TeamsMeeting> {

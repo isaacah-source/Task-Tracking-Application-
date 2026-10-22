@@ -544,6 +544,7 @@ function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean 
                       {trigger && (
                         <div>
                           Handoff milestone: <span className="font-medium">{trigger.title}</span>
+                          {trigger.projectId !== project.id && <> in <Link to={`/projects/${trigger.projectId}`} className="hover:underline">{data.projects.find((p) => p.id === trigger.projectId)?.title}</Link></>}
                           {trigger.status === "done" ? " (done)" : s.status !== "complete" ? " (hands off when done)" : ""}
                         </div>
                       )}
@@ -615,20 +616,25 @@ function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean 
 }
 
 /**
- * Adds or edits a stage. "Handoff milestone" is an open field: pick one of the project's tasks
- * from the suggestions, or type a new name to create a milestone due on the handoff date.
+ * Adds or edits a stage. "Handoff milestone" lists existing tasks grouped by project (this
+ * project first); when the chosen task is marked done, the handoff happens on its own.
  */
 function StageForm({ project, stage, onDone }: { project: Project; stage: Stage | null; onDone: () => void }) {
   const { data, run, repo } = useStore();
   const staff = data.people.filter((p) => p.role !== "viewer");
-  const projectTasks = data.tasks.filter((t) => t.projectId === project.id);
   const [name, setName] = useState(stage?.name ?? "");
   const [owner, setOwner] = useState<ID | null>(stage?.ownerId ?? null);
   const [dept, setDept] = useState<ID | null>(stage?.departmentId ?? null);
   const [date, setDate] = useState(stage?.handoffDate ?? "");
-  const [milestone, setMilestone] = useState(projectTasks.find((t) => t.id === stage?.handoffTaskId)?.title ?? "");
-  const listId = `stage-milestones-${stage?.id ?? "new"}`;
-  const existing = projectTasks.find((t) => t.title.trim().toLowerCase() === milestone.trim().toLowerCase());
+  const [taskId, setTaskId] = useState<ID>(stage?.handoffTaskId ?? "");
+  const chosen = data.tasks.find((t) => t.id === taskId);
+  // This project first, then other unfinished projects by name. Keep the current choice even
+  // if its project has finished.
+  const groups = data.projects
+    .filter((p) => p.id === project.id || p.status !== "done" || p.id === chosen?.projectId)
+    .sort((a, b) => (a.id === project.id ? -1 : b.id === project.id ? 1 : a.title.localeCompare(b.title)))
+    .map((p) => ({ project: p, tasks: topoOrder(data.tasks.filter((t) => t.projectId === p.id), data.dependencies) }))
+    .filter((g) => g.tasks.length);
 
   return (
     <form
@@ -636,14 +642,13 @@ function StageForm({ project, stage, onDone }: { project: Project; stage: Stage 
       onSubmit={async (e) => {
         e.preventDefault();
         const ok = await run(async () => {
-          const handoffTaskId = await repo.handoffMilestone(project.id, milestone, date || null, owner);
-          const fields = { name, ownerId: owner!, departmentId: dept!, handoffDate: date || null, handoffTaskId };
+          const fields = { name, ownerId: owner!, departmentId: dept!, handoffDate: date || null, handoffTaskId: taskId || null };
           if (stage) await repo.updateStage(stage.id, fields);
           else await repo.addStage(project.id, fields);
           return true;
         }, stage ? "Stage saved" : "Stage added");
         if (ok) {
-          if (!stage) { setName(""); setOwner(null); setDept(null); setDate(""); setMilestone(""); }
+          if (!stage) { setName(""); setOwner(null); setDept(null); setDate(""); setTaskId(""); }
           onDone();
         }
       }}
@@ -657,14 +662,24 @@ function StageForm({ project, stage, onDone }: { project: Project; stage: Stage 
         <Field label="Handoff date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field
           label="Handoff milestone"
-          hint={!milestone.trim()
-            ? "Optional. When this task is marked done, the project hands off on its own."
-            : existing ? `Uses the task "${existing.title}". Marking it done hands the project off.` : `Creates a new milestone "${milestone.trim()}"${date ? ` due ${formatDate(date)}` : ""}. Marking it done hands the project off.`}
+          hint={!chosen
+            ? "Optional. Choose a task, in this project or another one. When it is marked done, the project hands off on its own."
+            : chosen.status === "done"
+              ? `"${chosen.title}" is already done${stage?.status === "active" ? ", so saving hands the project off now" : ""}.`
+              : `When "${chosen.title}" is marked done, the project hands off on its own.`}
         >
-          <Input list={listId} value={milestone} onChange={(e) => setMilestone(e.target.value)} placeholder="Pick a task or type a new milestone" />
-          <datalist id={listId}>
-            {projectTasks.filter((t) => t.status !== "done" || t.id === stage?.handoffTaskId).map((t) => <option key={t.id} value={t.title} />)}
-          </datalist>
+          <Select value={taskId} onChange={(e) => setTaskId(e.target.value)}>
+            <option value="">None: hand off by hand</option>
+            {groups.map((g) => (
+              <optgroup key={g.project.id} label={g.project.id === project.id ? `${g.project.title} (this project)` : g.project.title}>
+                {g.tasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}{t.kind !== "task" ? ` (${TASK_KIND_LABELS[t.kind].toLowerCase()})` : ""}{t.dueDate ? `, due ${formatDate(t.dueDate)}` : ""}{t.status === "done" ? ", done" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
         </Field>
       </div>
       <div className="flex gap-2">

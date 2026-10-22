@@ -188,7 +188,12 @@ function Presentation({ o, onBack, onMeeting }: { o: DisplayOptions; onBack: () 
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-6 py-3 backdrop-blur print:hidden">
         <Button variant="outline" onClick={onBack}><ArrowLeft />Change what's shown</Button>
         <div className="flex flex-wrap gap-2">
-          <TeamsTranscribeButton title={o.title} note={data.meetings.find((m) => m.id === o.meetingId) ?? null} onLinked={onMeeting} />
+          <TeamsTranscribeButton
+            title={o.title}
+            note={data.meetings.find((m) => m.id === o.meetingId) ?? null}
+            departmentId={o.scope === "department" ? o.departmentId : null}
+            onLinked={onMeeting}
+          />
           <Button variant="outline" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})}><Maximize />Full screen</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer />Print</Button>
         </div>

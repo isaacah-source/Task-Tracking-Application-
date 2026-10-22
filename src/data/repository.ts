@@ -9,9 +9,9 @@ import type {
 } from "@/domain/types";
 import { emptyDataSet, STATUS_LABELS } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
-import { canDeleteInDepartment, canEditProject, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
+import { canDeleteInDepartment, canEditProject, canSeeMeeting, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
 import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
-import { completeStage, stageTriggeredBy, stagesFor } from "@/domain/transitions";
+import { completeStage, stagesTriggeredBy, stagesFor } from "@/domain/transitions";
 import { isIsoDate } from "@/domain/dates";
 
 /** A change broke a rule. `problems` are shown to the person as a list. */
@@ -433,7 +433,7 @@ export class Repository {
   async addStage(projectId: ID, s: StageInput): Promise<Stage> {
     this.requireEdit(this.project(projectId));
     if (!s.name.trim()) throw new RuleError(["Name the stage."]);
-    this.checkHandoffTask(projectId, s.handoffTaskId);
+    this.checkHandoffTask(s.handoffTaskId);
     const existing = stagesFor(projectId, this.data.stages);
     const hasActive = existing.some((x) => x.status === "active");
     const allDone = existing.length > 0 && existing.every((x) => x.status === "complete");
@@ -454,7 +454,7 @@ export class Repository {
     if (!s) return;
     this.requireEdit(this.project(s.projectId));
     if (patch.name !== undefined && !patch.name.trim()) throw new RuleError(["Name the stage."]);
-    this.checkHandoffTask(s.projectId, patch.handoffTaskId);
+    this.checkHandoffTask(patch.handoffTaskId);
     if (s.status === "complete" && ("handoffTaskId" in patch || "handoffDate" in patch)) {
       throw new RuleError([`"${s.name}" is already complete.`]);
     }
@@ -464,27 +464,8 @@ export class Repository {
     if (t) await this.handOffAfter(t);
   }
 
-  private checkHandoffTask(projectId: ID, taskId: ID | null | undefined) {
-    if (taskId && this.data.tasks.find((t) => t.id === taskId)?.projectId !== projectId) {
-      throw new RuleError(["The handoff milestone must be a task in this project."]);
-    }
-  }
-
-  /**
-   * Finds the project's task named `title` (any case), or creates a milestone with that name due
-   * on `date` and owned by `ownerId`. Returns its id. Backs the stage's open "Handoff milestone"
-   * field, which takes an existing task or a new milestone's name.
-   */
-  async handoffMilestone(projectId: ID, title: string, date: string | null, ownerId: ID | null): Promise<ID | null> {
-    const name = title.trim();
-    if (!name) return null;
-    const found = this.data.tasks.find((t) => t.projectId === projectId && t.title.trim().toLowerCase() === name.toLowerCase());
-    if (found) return found.id;
-    const t = await this.createTask({
-      projectId, title: name, kind: "milestone", ownerId, startDate: date, dueDate: date, status: "notStarted",
-      effortHours: 0, estimatedCost: 0, notes: "Handoff milestone. Completing it hands the project to the next stage.",
-    });
-    return t.id;
+  private checkHandoffTask(taskId: ID | null | undefined) {
+    if (taskId && !this.data.tasks.some((t) => t.id === taskId)) throw new RuleError(["That handoff milestone task no longer exists."]);
   }
 
   async removeStage(id: ID): Promise<void> {
@@ -505,18 +486,23 @@ export class Repository {
   }
 
   /**
-   * Completes the active stage when its handoff milestone (this task) is done, and keeps going
-   * while the next stage's milestone is already done too. Returns the stages completed.
+   * Completes every active stage whose handoff milestone is this task, once it is done. The
+   * milestone can be a task in any project, so finishing work in one project can hand off
+   * another. Keeps going while a newly active stage's milestone is already done. Runs as part
+   * of the task change: whoever may complete the task sets off the handoff. Returns the stages
+   * completed.
    */
   private async handOffAfter(task: Task): Promise<Stage[]> {
     const done: Stage[] = [];
-    let current: Task | null = task;
-    for (let guard = 0; current && guard < 50; guard++) {
-      const stage = stageTriggeredBy(current, this.data.stages);
-      if (!stage) break;
-      const { next } = await this.handOff(this.project(task.projectId), stage.id, `Handed off automatically: "${current.title}" was completed.`);
-      done.push(stage);
-      current = next?.handoffTaskId ? this.data.tasks.find((t) => t.id === next.handoffTaskId) ?? null : null;
+    const queue: Task[] = [task];
+    while (queue.length && done.length < 50) {
+      const current = queue.shift()!;
+      for (const stage of stagesTriggeredBy(current, this.data.stages)) {
+        const { next } = await this.handOff(this.project(stage.projectId), stage.id, `Handed off automatically: "${current.title}" was completed.`);
+        done.push(stage);
+        const t = next?.handoffTaskId ? this.data.tasks.find((x) => x.id === next.handoffTaskId) : null;
+        if (t) queue.push(t);
+      }
     }
     return done;
   }
@@ -564,6 +550,17 @@ export class Repository {
 
   // ---- Meetings ----
 
+  /** Meeting notes this person may read (see canSeeMeeting). */
+  visibleMeetings(): MeetingNote[] {
+    return this.data.meetings.filter((m) => canSeeMeeting(this.me, m, this.data.departments));
+  }
+
+  private requireMeeting(id: ID): MeetingNote {
+    const m = this.data.meetings.find((x) => x.id === id);
+    if (!m || !canSeeMeeting(this.me, m, this.data.departments)) throw new PermissionError("That meeting note is not shared with you.");
+    return m;
+  }
+
   async createMeeting(
     input: Omit<MeetingNote, "id" | "createdById" | TeamsField> & Partial<Pick<MeetingNote, TeamsField>>,
   ): Promise<MeetingNote> {
@@ -574,12 +571,14 @@ export class Repository {
   /** Saves a transcript fetched from Teams, cut to what a SharePoint long text column holds. */
   async saveTranscript(id: ID, transcript: string): Promise<void> {
     this.requireWrite();
+    this.requireMeeting(id);
     const text = transcript.length > 60_000 ? `${transcript.slice(0, 60_000)}\n\n(Cut off here. The full transcript is in Teams.)` : transcript;
     await this.update("meetings", id, { transcript: text });
   }
 
   async updateMeeting(id: ID, patch: Partial<Omit<MeetingNote, "id">>): Promise<void> {
     this.requireWrite();
+    this.requireMeeting(id);
     await this.update("meetings", id, patch);
   }
 

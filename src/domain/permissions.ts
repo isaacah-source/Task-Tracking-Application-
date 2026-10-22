@@ -8,7 +8,7 @@
 // - Viewers only read.
 // Deleting is for admins and Department Task Leads only.
 
-import type { DataSet, Department, ID, Person, Project } from "./types";
+import type { DataSet, Department, ID, MeetingNote, Person, Project } from "./types";
 import { ROLE_LABELS } from "./types";
 
 export function isAdmin(me: Person | null): boolean {
@@ -39,6 +39,20 @@ function trees(rootIds: ID[], departments: Department[]): Set<ID> {
   const out = new Set<ID>();
   for (const id of rootIds) for (const d of departmentTree(id, departments)) out.add(d);
   return out;
+}
+
+/**
+ * Meeting notes: admins read all of them. Everyone else reads notes for meetings they were
+ * in or wrote, and notes filed under their own department (with its sub-departments) or a
+ * department they own or lead. Notes with no department are for their attendees and admins.
+ */
+export function canSeeMeeting(me: Person | null, m: MeetingNote, departments: Department[]): boolean {
+  if (!me) return false;
+  if (isAdmin(me)) return true;
+  if (m.attendeeIds.includes(me.id) || m.createdById === me.id) return true;
+  if (!m.departmentId) return false;
+  if (me.departmentId && departmentTree(me.departmentId, departments).has(m.departmentId)) return true;
+  return ownedDepartmentIds(me, departments).has(m.departmentId) || leadDepartmentScope(me, departments).has(m.departmentId);
 }
 
 /** Departments this person owns, including sub-departments under them. */
