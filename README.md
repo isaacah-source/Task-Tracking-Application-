@@ -35,6 +35,10 @@ loads sample departments, people, and projects. Nothing is saved.
   department, and show a summary, a timeline (Gantt) per group, and a task list. Presets
   cover a department meeting, a whole-org meeting, and a weekly check-in. The choices live in
   the page address, so a display can be bookmarked. Print works too.
+- **Teams transcription.** On a meeting display, **Transcribe with Teams** creates a Teams
+  meeting set to record and transcribe automatically, or turns that on for a meeting already on
+  your calendar (paste its join link; you must be the organizer). It also starts a meeting note.
+  After the meeting, open that note and click **Get transcript**. See "Teams transcription" below.
 - **Meeting notes mode.** Take notes and assign work during a meeting. While you fill in an
   assignment, the app checks it against existing commitments: other deadlines and events
   for that person, their hours against capacity, the project budget, and task order. When
@@ -136,6 +140,10 @@ Two things to know:
 **Upgrading a site set up before this version:** the first admin to open the app sees **Set up
 site** again. Clicking it adds the new list and the new People columns (Reports to, lead
 departments). Nothing existing is changed.
+
+**New columns on existing lists** (for example the Teams columns on FSI Meeting Notes): an admin
+opens **Admin**, **Connections**. When a list is missing columns, a yellow box lists them with
+an **Update SharePoint lists** button. Updating adds the columns and keeps all data.
 
 ## One-time setup
 
@@ -240,6 +248,38 @@ access for this app to write the FSI Projects tab. Without the folder link, the 
 tab says the tracker is not connected. Demo mode always uses sample contacts
 (`MockRelationshipTracker`).
 
+## Teams transcription
+
+A web app cannot switch transcription on in a Teams call that is already running. Instead, the
+app sets the meeting itself to **record and transcribe automatically** (the same switch as the
+Teams meeting option), and after the meeting reads the transcript Teams made.
+
+1. On a meeting display, click **Transcribe with Teams** and either:
+   - **Create Teams meeting**: a new meeting named after the display, owned by you; or
+   - **Turn on transcription** for a meeting you already scheduled in Outlook: paste its join
+     link. Only the meeting's organizer can do this.
+2. Open the meeting in Teams from the dialog and share the display screen. Recording and
+   transcription start when the meeting starts.
+3. After the meeting ends, open the meeting note (the dialog links to it, or **Meeting notes**)
+   and click **Get transcript**. Teams usually needs a few minutes after the meeting ends.
+   Only the organizer can fetch it. The transcript is saved on the meeting note, separate from
+   the typed notes.
+
+To connect it:
+
+1. In the Entra app registration (**API permissions**), add the Microsoft Graph delegated
+   permissions `OnlineMeetings.ReadWrite` and `OnlineMeetingTranscript.Read.All`, then click
+   **Grant admin consent**.
+2. In the Teams admin center, the meeting policy for the people running meetings must allow
+   **Transcription** and **Recording**.
+3. An admin clicks **Update SharePoint lists** on Admin, Connections, to add the three new
+   FSI Meeting Notes columns (Teams Meeting, Teams Join Url, Transcript).
+
+Recordings and transcripts stay in Teams and the organizer's OneDrive under Microsoft 365's
+normal retention. The app keeps a text copy on the meeting note. Long transcripts are cut at
+60,000 characters, the most a SharePoint long text column holds; the full version stays in
+Teams. Demo mode uses a sample transcript (`MockTeamsTranscription`).
+
 ## Development
 
 ```bash
@@ -263,5 +303,5 @@ Code layout:
   audit and budget logs, and requires reasons for date changes.
 - `src/data/graphBackend.ts`: SharePoint lists through Microsoft Graph, including setup.
 - `src/data/memoryBackend.ts` and `src/data/seed.ts`: demo mode and tests.
-- `src/integrations/`: Relationship Tracker adapter and the Claude provider.
+- `src/integrations/`: Relationship Tracker adapter, Teams transcription, and the Claude provider.
 - `src/pages/`, `src/components/`: the UI (React, Tailwind, shadcn/ui components).

@@ -148,7 +148,10 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     description: "Notes from daily, monthly, quarterly, and yearly meetings.",
     title: (r) => r.title,
     titleField: "title",
-    columns: { meetingType: "text", date: "date", notes: "note", attendeeIds: "json", createdById: "ref" },
+    columns: {
+      meetingType: "text", date: "date", notes: "note", attendeeIds: "json", createdById: "ref", teamsMeetingId: "note", teamsJoinUrl: "note",
+      transcript: "note",
+    },
   }),
   deletions: def({
     table: "deletions",

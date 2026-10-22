@@ -105,6 +105,18 @@ describe("GraphListsBackend", () => {
     expect(g.lists.get(SCHEMA.tasks.listName)!.columns).toContain("fsiCompletedAt");
   });
 
+  it("reports columns a newer app version needs before setup adds them", async () => {
+    const g = fakeGraph();
+    const b = new GraphListsBackend("https://host/sites/Tracker", token, g.fetchFn);
+    await b.setup();
+    expect(await b.missingColumns()).toEqual([]);
+    const meetings = g.lists.get(SCHEMA.meetings.listName)!;
+    meetings.columns = meetings.columns.filter((c) => !/^fsi(Teams|Transcript)/.test(c));
+    expect(await b.missingColumns()).toEqual(["FSI Meeting Notes: Teams Meeting, Teams Join Url, Transcript"]);
+    await b.setup();
+    expect(await b.missingColumns()).toEqual([]);
+  });
+
   it("creates, reads, updates, and deletes items", async () => {
     const g = fakeGraph();
     const b = new GraphListsBackend("https://host/sites/Tracker", token, g.fetchFn);

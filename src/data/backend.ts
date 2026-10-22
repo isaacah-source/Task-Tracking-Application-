@@ -17,6 +17,8 @@ export interface Backend {
   remove(table: TableName, id: ID): Promise<void>;
   /** Lists (by display name) that setup still needs to create. Empty when ready. */
   missingLists(): Promise<string[]>;
+  /** Columns a newer version of the app added that setup has not created yet, as "List: Column, ...". */
+  missingColumns(): Promise<string[]>;
   /** Creates any missing lists and columns. */
   setup(): Promise<void>;
 }

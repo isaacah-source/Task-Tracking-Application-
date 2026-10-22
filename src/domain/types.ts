@@ -222,6 +222,11 @@ export interface MeetingNote {
   notes: string;
   attendeeIds: ID[];
   createdById: ID | null;
+  /** Teams meeting set to transcribe automatically (Graph onlineMeeting id), or "". */
+  teamsMeetingId: string;
+  teamsJoinUrl: string;
+  /** Transcript fetched from Teams after the meeting, as plain text. */
+  transcript: string;
 }
 
 /**

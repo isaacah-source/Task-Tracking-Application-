@@ -49,5 +49,9 @@ export class MemoryBackend implements Backend {
     return [];
   }
 
+  async missingColumns(): Promise<string[]> {
+    return [];
+  }
+
   async setup(): Promise<void> {}
 }

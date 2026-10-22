@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Plus, UserCheck } from "lucide-react";
 import { useStore } from "@/data/store";
 import type { ID, MeetingNote, MeetingType } from "@/domain/types";
@@ -8,6 +8,7 @@ import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domai
 import { canWrite } from "@/domain/permissions";
 import { formatDate, formatShort } from "@/domain/dates";
 import { ConflictList } from "@/components/ConflictList";
+import { TranscriptCard } from "@/components/TeamsTranscribe";
 import { DueFlag, Empty, Field, PageHeader, PersonSelect, personName } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,10 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 export default function MeetingPage() {
   const { data, me } = useStore();
   const meetings = [...data.meetings].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
-  const [currentId, setCurrentId] = useState<ID | null>(null);
+  // ?id= opens a meeting directly (the meeting display links here).
+  const [params, setParams] = useSearchParams();
+  const currentId = params.get("id");
+  const setCurrentId = (id: ID | null) => setParams(id ? { id } : {});
   const current = data.meetings.find((m) => m.id === currentId) ?? null;
 
   if (!current) {
@@ -182,6 +186,7 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
         </Card>
 
         <div className="grid content-start gap-6">
+          <TranscriptCard meeting={meeting} canEdit={canEdit} />
           {canEdit && (
             <Card>
               <CardHeader>
