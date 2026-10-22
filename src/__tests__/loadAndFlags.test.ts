@@ -8,7 +8,7 @@ import { buildSeed } from "@/data/seed";
 const TODAY = "2026-10-19"; // Monday
 
 const task = (over: Partial<Task> = {}): Task => ({
-  id: "t", projectId: "p", title: "T", kind: "task", ownerId: "1", horizon: "immediate", startDate: null, dueDate: null,
+  id: "t", projectId: "p", title: "T", kind: "task", ownerId: "1", startDate: null, dueDate: null,
   status: "notStarted", effortHours: 10, estimatedCost: 0, notes: "", sourceMeetingId: null, completedAt: null, ...over,
 });
 

@@ -4,7 +4,7 @@
 // planner used until Claude is connected.
 
 import type { DataSet, ID, Project, Task } from "@/domain/types";
-import { HORIZON_LABELS, STATUS_LABELS } from "@/domain/types";
+import { STATUS_LABELS } from "@/domain/types";
 import { daysBetween } from "@/domain/dates";
 import { blockedTaskIds } from "@/domain/dependencies";
 import { dueFlag } from "@/domain/flags";
@@ -27,7 +27,6 @@ export interface ProjectHistory {
   owner: string;
   outputTypes: string[];
   status: string;
-  horizon: string;
   milestone: string;
   startDate: string | null;
   dueDate: string | null;
@@ -91,7 +90,6 @@ export function buildHistory(data: DataSet, today: string): History {
       owner: name(p.ownerId),
       outputTypes: p.outputTypeIds.map(otName),
       status: STATUS_LABELS[p.status],
-      horizon: HORIZON_LABELS[p.horizon],
       milestone: p.milestone,
       startDate: p.startDate,
       dueDate: p.dueDate,

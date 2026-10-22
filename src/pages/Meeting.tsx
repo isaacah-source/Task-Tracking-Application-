@@ -143,7 +143,7 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
     const t = await run(() =>
       repo.createTask(
         {
-          projectId: a.projectId!, title: a.title, kind: "task", ownerId: a.ownerId, horizon: "immediate", startDate: a.startDate, dueDate: a.dueDate,
+          projectId: a.projectId!, title: a.title, kind: "task", ownerId: a.ownerId, startDate: a.startDate, dueDate: a.dueDate,
           status: "notStarted", effortHours: a.effortHours, estimatedCost: a.estimatedCost, notes: `Assigned in ${meeting.title} (${formatDate(meeting.date)})`,
           sourceMeetingId: meeting.id,
         },

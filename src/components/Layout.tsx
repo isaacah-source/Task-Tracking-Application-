@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  BarChart3, CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, Network, NotebookPen, Settings, Sparkles, Users,
+  BarChart3, CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
 } from "lucide-react";
 import { useStore } from "@/data/store";
 import { isAdmin } from "@/domain/permissions";
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/people", label: "Workload", icon: Users },
   { to: "/org", label: "Org chart", icon: Network },
   { to: "/meeting", label: "Meeting notes", icon: NotebookPen },
+  { to: "/display", label: "Meeting display", icon: MonitorPlay },
   { to: "/plan", label: "Planning", icon: Sparkles },
   { to: "/ask", label: "Ask about the data", icon: MessageSquareText },
 ];
