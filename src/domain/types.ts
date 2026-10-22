@@ -225,6 +225,8 @@ export interface MeetingNote {
   notes: string;
   attendeeIds: ID[];
   createdById: ID | null;
+  /** Whose meeting this is. Decides who else can read the note (see canSeeMeeting). */
+  departmentId: ID | null;
   /** Teams meeting set to transcribe automatically (Graph onlineMeeting id), or "". */
   teamsMeetingId: string;
   teamsJoinUrl: string;

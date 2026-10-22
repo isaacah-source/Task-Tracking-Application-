@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { isTeamsJoinUrl, vttToText } from "@/integrations/teams/adapter";
 import { GraphTeamsTranscription, MEETING_SCOPES, TRANSCRIPT_SCOPES, grantedScopes } from "@/integrations/teams/graph";
 import { MOCK_VTT, MockTeamsTranscription } from "@/integrations/teams/mock";
+import { attendeesFor } from "@/components/TeamsCalendar";
+import { CALENDAR_SCOPES } from "@/integrations/teams/graph";
 import { MemoryBackend } from "@/data/memoryBackend";
 import { Repository } from "@/data/repository";
 import { buildSeed } from "@/data/seed";
@@ -118,7 +120,7 @@ describe("meeting notes with a Teams transcript", () => {
     const teams = new MockTeamsTranscription();
     const tm = await teams.createMeeting("Research weekly");
     const note = await repo.createMeeting({
-      title: "Research weekly", meetingType: "weekly", date: "2026-10-22", notes: "", attendeeIds: [me.id], teamsMeetingId: tm.id, teamsJoinUrl: tm.joinUrl,
+      title: "Research weekly", meetingType: "weekly", date: "2026-10-22", notes: "", attendeeIds: [me.id], departmentId: "2", teamsMeetingId: tm.id, teamsJoinUrl: tm.joinUrl,
     });
     expect(note).toMatchObject({ teamsMeetingId: tm.id, transcript: "" });
     expect(await teams.fetchTranscript(tm.id)).toBeNull();
@@ -136,7 +138,55 @@ describe("meeting notes with a Teams transcript", () => {
     const me = data.people.find((p) => p.role === "admin")!;
     const repo = new Repository(new MemoryBackend(data), me, me.email);
     await repo.refresh();
-    const n = await repo.createMeeting({ title: "Stand-up", meetingType: "daily", date: "2026-10-22", notes: "", attendeeIds: [] });
+    const n = await repo.createMeeting({ title: "Stand-up", meetingType: "daily", date: "2026-10-22", notes: "", attendeeIds: [], departmentId: null });
     expect(n).toMatchObject({ teamsMeetingId: "", teamsJoinUrl: "", transcript: "" });
+  });
+});
+
+describe("Teams calendar", () => {
+  it("lists only Teams meetings, in UTC, following pages", async () => {
+    const calls: { url: string; prefer?: string; auth: string }[] = [];
+    const page1 = {
+      value: [
+        { id: "e1", subject: "Research weekly", isOnlineMeeting: true, isOrganizer: true, onlineMeeting: { joinUrl: JOIN },
+          start: { dateTime: "2026-10-23T14:00:00.0000000" }, end: { dateTime: "2026-10-23T15:00:00.0000000" },
+          organizer: { emailAddress: { name: "Ike Harris", address: "Ike@Example.org" } }, attendees: [{ emailAddress: { address: "Aaron@example.org" } }] },
+        { id: "e2", subject: "Lunch", isOnlineMeeting: false, start: { dateTime: "2026-10-23T17:00:00" }, end: { dateTime: "2026-10-23T18:00:00" } },
+      ],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?page=2",
+    };
+    const page2 = {
+      value: [{ id: "e3", subject: "Cancelled", isCancelled: true, isOnlineMeeting: true, onlineMeeting: { joinUrl: JOIN },
+        start: { dateTime: "2026-10-24T14:00:00" }, end: { dateTime: "2026-10-24T15:00:00" } }],
+    };
+    const fetchFn = (async (url: string | URL | Request, init?: RequestInit) => {
+      const h = init?.headers as Record<string, string>;
+      calls.push({ url: String(url), prefer: h.Prefer, auth: h.Authorization });
+      return new Response(JSON.stringify(String(url).includes("page=2") ? page2 : page1), { status: 200 });
+    }) as typeof fetch;
+    const list = await new GraphTeamsTranscription(token, fetchFn).listCalendar(new Date("2026-10-22T00:00:00Z"), new Date("2026-11-05T00:00:00Z"));
+    expect(list).toEqual([{
+      eventId: "e1", subject: "Research weekly", start: "2026-10-23T14:00:00Z", end: "2026-10-23T15:00:00Z", joinUrl: JOIN,
+      organizerName: "Ike Harris", organizerEmail: "ike@example.org", isOrganizer: true, attendeeEmails: ["aaron@example.org"],
+    }]);
+    expect(calls[0].url).toContain("/me/calendarView?startDateTime=2026-10-22T00:00:00.000Z&endDateTime=2026-11-05T00:00:00.000Z");
+    expect(calls[0].prefer).toBe('outlook.timezone="UTC"');
+    expect(calls[0].auth).toBe(`Bearer t:${CALENDAR_SCOPES.join(",")}`);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("matches invitees to people in the app and always includes the person setting it up", () => {
+    const data = buildSeed("2026-10-22");
+    const ike = data.people.find((p) => p.name === "Ike Harris")!;
+    const ids = attendeesFor({
+      eventId: "x", subject: "", start: "", end: "", joinUrl: JOIN, organizerName: "Aaron", organizerEmail: "AARON@example.org",
+      isOrganizer: false, attendeeEmails: ["dana@example.org", "outsider@example.com"],
+    }, data.people, ike);
+    expect(ids).toEqual(["1", "3", "5"]);
+  });
+
+  it("demo calendar marks meetings someone else organizes", async () => {
+    const list = await new MockTeamsTranscription(true).listCalendar(new Date(Date.now() - 2 * 864e5), new Date(Date.now() + 14 * 864e5));
+    expect(list.some((m) => !m.isOrganizer)).toBe(true);
   });
 });

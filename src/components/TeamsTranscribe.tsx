@@ -6,7 +6,7 @@ import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
 import { canWrite } from "@/domain/permissions";
 import { isTeamsJoinUrl } from "@/integrations/teams/adapter";
-import { Field } from "@/components/common";
+import { DepartmentSelect, Field } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,7 +18,9 @@ import { Input, Select } from "@/components/ui/input";
  * person already scheduled. The transcript lands on a meeting note: `note` when given (the
  * meeting notes page), otherwise a new note started here (the meeting display).
  */
-export function TeamsTranscribeButton({ title, note, onLinked }: { title: string; note: MeetingNote | null; onLinked?: (id: ID) => void }) {
+export function TeamsTranscribeButton({ title, note, departmentId, onLinked }: {
+  title: string; note: MeetingNote | null; departmentId?: ID | null; onLinked?: (id: ID) => void;
+}) {
   const { me } = useStore();
   const [open, setOpen] = useState(false);
   const linked = note?.teamsJoinUrl ? note : null;
@@ -29,15 +31,16 @@ export function TeamsTranscribeButton({ title, note, onLinked }: { title: string
         <Captions />{linked ? "Teams transcription on" : "Transcribe with Teams"}
       </Button>
       <DialogContent>
-        {linked ? <Linked meeting={linked} showNotesLink={!!onLinked} /> : <Start title={title} note={note} onLinked={onLinked} />}
+        {linked ? <Linked meeting={linked} showNotesLink={!!onLinked} /> : <Start title={title} note={note} departmentId={departmentId ?? null} onLinked={onLinked} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Start({ title, note, onLinked }: { title: string; note: MeetingNote | null; onLinked?: (id: ID) => void }) {
-  const { me, repo, run, teams, today, toast } = useStore();
+function Start({ title, note, departmentId, onLinked }: { title: string; note: MeetingNote | null; departmentId: ID | null; onLinked?: (id: ID) => void }) {
+  const { data, me, repo, run, teams, today, toast } = useStore();
   const [type, setType] = useState<MeetingType>("weekly");
+  const [dept, setDept] = useState<ID | null>(departmentId ?? me?.departmentId ?? null);
   const [link, setLink] = useState("");
   const subject = title.trim() || "FSI meeting";
 
@@ -50,7 +53,7 @@ function Start({ title, note, onLinked }: { title: string; note: MeetingNote | n
         return note.id;
       }
       const created = await repo.createMeeting({
-        title: subject, meetingType: type, date: today, notes: "", attendeeIds: me ? [me.id] : [], teamsMeetingId: t.id, teamsJoinUrl: t.joinUrl,
+        title: subject, meetingType: type, date: today, notes: "", attendeeIds: me ? [me.id] : [], departmentId: dept, teamsMeetingId: t.id, teamsJoinUrl: t.joinUrl,
       });
       return created.id;
     });
@@ -70,11 +73,16 @@ function Start({ title, note, onLinked }: { title: string; note: MeetingNote | n
         </DialogDescription>
       </DialogHeader>
       {!note && (
-        <Field label="Meeting type (for the meeting note)">
-          <Select value={type} onChange={(e) => setType(e.target.value as MeetingType)}>
-            {Object.entries(MEETING_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </Select>
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Meeting type (for the meeting note)">
+            <Select value={type} onChange={(e) => setType(e.target.value as MeetingType)}>
+              {Object.entries(MEETING_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </Select>
+          </Field>
+          <Field label="Department (who can read the note)">
+            <DepartmentSelect departments={data.departments} value={dept} onChange={setDept} allowEmpty emptyLabel="Attendees only" />
+          </Field>
+        </div>
       )}
       <div className="grid gap-2 rounded-md border p-3">
         <p className="text-sm font-medium">Start a new Teams meeting now</p>

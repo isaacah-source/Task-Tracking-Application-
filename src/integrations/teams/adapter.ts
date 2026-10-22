@@ -11,6 +11,21 @@ export interface TeamsMeeting {
   subject: string;
 }
 
+/** A Teams meeting on the signed-in person's Outlook calendar. */
+export interface CalendarMeeting {
+  eventId: string;
+  subject: string;
+  /** ISO timestamps (UTC). */
+  start: string;
+  end: string;
+  joinUrl: string;
+  organizerName: string;
+  organizerEmail: string;
+  /** Only the organizer can turn on transcription and read the transcript. */
+  isOrganizer: boolean;
+  attendeeEmails: string[];
+}
+
 export interface TeamsTranscription {
   readonly name: string;
   /** New Teams meeting, starting now, set to record and transcribe automatically. */
@@ -20,6 +35,8 @@ export interface TeamsTranscription {
    * "record and transcribe automatically" for it.
    */
   attachMeeting(joinUrl: string): Promise<TeamsMeeting>;
+  /** Teams meetings on the person's calendar between `from` and `to`, earliest first. */
+  listCalendar(from: Date, to: Date): Promise<CalendarMeeting[]>;
   /** The meeting's transcript as plain text, or null when Teams has none yet. */
   fetchTranscript(meetingId: string): Promise<string | null>;
 }

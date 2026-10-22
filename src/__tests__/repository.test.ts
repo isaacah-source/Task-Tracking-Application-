@@ -107,7 +107,7 @@ describe("permissions", () => {
   it("blocks viewers from everything", async () => {
     const { repo } = await repoAs("Board Observer (sample)");
     await expect(repo.updateProject("1", { operationalDetails: "x" })).rejects.toBeInstanceOf(PermissionError);
-    await expect(repo.createMeeting({ title: "x", meetingType: "daily", date: TODAY, notes: "", attendeeIds: [] })).rejects.toBeInstanceOf(PermissionError);
+    await expect(repo.createMeeting({ title: "x", meetingType: "daily", date: TODAY, notes: "", attendeeIds: [], departmentId: null })).rejects.toBeInstanceOf(PermissionError);
   });
   it("keeps admin settings to admins", async () => {
     const { repo } = await repoAs("Aaron");
@@ -302,37 +302,43 @@ describe("stage handoff", () => {
     await repo.completeStage("1", "2");
     expect(repo.project("1").status).toBe("done");
   });
-  it("hands off automatically when the stage's handoff milestone is completed", async () => {
-    const { repo } = await repoAs("Aaron");
-    const id = (await repo.handoffMilestone("1", "Research sign-off", "2026-11-01", "3"))!;
-    expect(repo.task(id)).toMatchObject({ kind: "milestone", dueDate: "2026-11-01", ownerId: "3" });
-    await repo.updateStage("1", { handoffTaskId: id, handoffDate: "2026-11-01" });
-    const { handedOff } = await repo.updateTask(id, { status: "done" });
+  it("hands off automatically when the milestone task, even in another project, is completed", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await repo.updateStage("1", { handoffTaskId: "18", handoffDate: "2026-11-01" }); // a task in the hiring project
+    const { handedOff } = await repo.updateTask("18", { status: "done" });
     expect(handedOff.map((s) => s.name)).toEqual(["Research"]);
     expect(repo.data.stages.find((s) => s.id === "2")!.status).toBe("active");
     expect(repo.project("1")).toMatchObject({ ownerId: "2", departmentId: "1" });
-    expect(repo.data.stages.find((s) => s.id === "1")!.handoffNote).toMatch(/automatically: "Research sign-off" was completed/);
+    expect(repo.data.stages.find((s) => s.id === "1")!.handoffNote).toMatch(/automatically: "Post fellowship call" was completed/);
   });
-  it("uses an existing task named in the handoff milestone field, any case", async () => {
-    const { repo } = await repoAs("Aaron");
-    expect(await repo.handoffMilestone("1", "  research COMPLETE ", null, "3")).toBe("6");
-    expect(await repo.handoffMilestone("1", "  ", null, "3")).toBeNull();
+  it("does nothing until the milestone task is done", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await repo.updateStage("1", { handoffTaskId: "18" });
+    const { handedOff } = await repo.updateTask("18", { notes: "halfway" });
+    expect(handedOff).toEqual([]);
+    expect(repo.data.stages.find((s) => s.id === "1")!.status).toBe("active");
   });
   it("hands off at once when the chosen milestone is already done, and keeps going down the chain", async () => {
     const { repo } = await repoAs("Ike Harris");
-    const a = (await repo.handoffMilestone("1", "A", null, "3"))!;
-    const b = (await repo.handoffMilestone("1", "B", null, "2"))!;
-    await repo.updateTask(b, { status: "done" });
-    await repo.updateStage("2", { handoffTaskId: b });
+    const mk = (title: string) => repo.createTask({
+      projectId: "5", title, kind: "milestone", ownerId: "4", startDate: null, dueDate: null, status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "",
+    });
+    const a = await mk("A");
+    const b = await mk("B");
+    await repo.updateTask(b.id, { status: "done" });
+    await repo.updateStage("2", { handoffTaskId: b.id });
     expect(repo.data.stages.find((s) => s.id === "2")!.status).toBe("pending"); // not active yet
-    await repo.updateStage("1", { handoffTaskId: a });
-    await repo.updateTask(a, { status: "done" });
+    await repo.updateStage("1", { handoffTaskId: a.id });
+    await repo.updateTask(a.id, { status: "done" });
     expect(repo.data.stages.filter((s) => s.projectId === "1").map((s) => s.status)).toEqual(["complete", "complete"]);
     expect(repo.project("1").status).toBe("done");
+    // Choosing a task that is already done hands off right away.
+    await repo.updateStage("3", { handoffTaskId: "1" });
+    expect(repo.data.stages.find((s) => s.id === "3")!.status).toBe("complete");
   });
-  it("only accepts a handoff milestone from the same project", async () => {
+  it("refuses a handoff milestone task that does not exist", async () => {
     const { repo } = await repoAs("Aaron");
-    await expect(repo.updateStage("1", { handoffTaskId: "9" })).rejects.toThrow(/task in this project/);
+    await expect(repo.updateStage("1", { handoffTaskId: "999" })).rejects.toThrow(/no longer exists/);
   });
   it("clears a stage's handoff milestone when that task is deleted", async () => {
     const { repo } = await repoAs("Ike Harris");
@@ -390,5 +396,31 @@ describe("admin", () => {
     expect(data.people).toMatchObject([{ email: "first@example.org", role: "admin" }]);
     expect(data.departments.map((d) => d.name)).toEqual(STANDARD_DEPARTMENTS);
     expect(data.outputTypes).toHaveLength(5);
+  });
+});
+
+describe("meeting note visibility", () => {
+  const titles = (r: Repository) => r.visibleMeetings().map((m) => m.title).sort();
+  it("shows admins every note", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    expect(titles(repo)).toEqual(["Comms planning", "Daily stand-up", "Ops monthly review", "Research weekly"]);
+  });
+  it("shows others their department's notes and meetings they were in", async () => {
+    const { repo } = await repoAs("Dana Ortiz (sample)"); // Research, not at the stand-up
+    expect(titles(repo)).toEqual(["Research weekly"]);
+    const aaron = (await repoAs("Aaron")).repo; // Research, at the stand-up
+    expect(titles(aaron)).toEqual(["Daily stand-up", "Research weekly"]);
+  });
+  it("lets a parent department see its sub-departments' notes, not the other way round", async () => {
+    const { repo } = await repoAs("Jeremy"); // Ops
+    await repo.createMeeting({ title: "Resourcing check-in", meetingType: "weekly", date: TODAY, notes: "", attendeeIds: [], departmentId: "5" });
+    expect(titles(repo)).toContain("Resourcing check-in");
+    const susan = (await repoAs("Susan Malandrino", repo.data)).repo; // Comms
+    expect(titles(susan)).not.toContain("Resourcing check-in");
+  });
+  it("refuses changes to a note that is not shared with the person", async () => {
+    const { repo } = await repoAs("Dana Ortiz (sample)");
+    await expect(repo.updateMeeting("3", { notes: "x" })).rejects.toBeInstanceOf(PermissionError);
+    await expect(repo.saveTranscript("3", "x")).rejects.toBeInstanceOf(PermissionError);
   });
 });
