@@ -13,14 +13,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input, Select } from "@/components/ui/input";
 
 /**
- * "Transcribe with Teams" on the meeting display. Creates a Teams meeting set to record and
- * transcribe automatically, or switches that on for a meeting the person already scheduled,
- * and starts a meeting note to receive the transcript afterwards.
+ * "Transcribe with Teams" on the meeting display and on a meeting note. Creates a Teams
+ * meeting set to record and transcribe automatically, or switches that on for a meeting the
+ * person already scheduled. The transcript lands on a meeting note: `note` when given (the
+ * meeting notes page), otherwise a new note started here (the meeting display).
  */
-export function TeamsTranscribeButton({ title, meetingId, onLinked }: { title: string; meetingId: ID | null; onLinked: (id: ID) => void }) {
-  const { data, me } = useStore();
+export function TeamsTranscribeButton({ title, note, onLinked }: { title: string; note: MeetingNote | null; onLinked?: (id: ID) => void }) {
+  const { me } = useStore();
   const [open, setOpen] = useState(false);
-  const linked = data.meetings.find((m) => m.id === meetingId && m.teamsJoinUrl) ?? null;
+  const linked = note?.teamsJoinUrl ? note : null;
   if (!canWrite(me)) return null;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -28,28 +29,33 @@ export function TeamsTranscribeButton({ title, meetingId, onLinked }: { title: s
         <Captions />{linked ? "Teams transcription on" : "Transcribe with Teams"}
       </Button>
       <DialogContent>
-        {linked ? <Linked meeting={linked} /> : <Start title={title} onLinked={onLinked} />}
+        {linked ? <Linked meeting={linked} showNotesLink={!!onLinked} /> : <Start title={title} note={note} onLinked={onLinked} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Start({ title, onLinked }: { title: string; onLinked: (id: ID) => void }) {
+function Start({ title, note, onLinked }: { title: string; note: MeetingNote | null; onLinked?: (id: ID) => void }) {
   const { me, repo, run, teams, today, toast } = useStore();
   const [type, setType] = useState<MeetingType>("weekly");
   const [link, setLink] = useState("");
   const subject = title.trim() || "FSI meeting";
 
   async function begin(existing: boolean) {
-    const note = await run(async () => {
+    const id = await run(async () => {
       const start = new Date();
       const t = existing ? await teams.attachMeeting(link) : await teams.createMeeting(subject, start, new Date(start.getTime() + 60 * 60_000));
-      return repo.createMeeting({
+      if (note) {
+        await repo.updateMeeting(note.id, { teamsMeetingId: t.id, teamsJoinUrl: t.joinUrl });
+        return note.id;
+      }
+      const created = await repo.createMeeting({
         title: subject, meetingType: type, date: today, notes: "", attendeeIds: me ? [me.id] : [], teamsMeetingId: t.id, teamsJoinUrl: t.joinUrl,
       });
+      return created.id;
     });
-    if (note) {
-      onLinked(note.id);
+    if (id) {
+      onLinked?.(id);
       toast(existing ? "Transcription turned on for your meeting" : "Teams meeting created");
     }
   }
@@ -59,15 +65,17 @@ function Start({ title, onLinked }: { title: string; onLinked: (id: ID) => void 
       <DialogHeader>
         <DialogTitle>Transcribe with Teams</DialogTitle>
         <DialogDescription>
-          Teams records and transcribes the meeting automatically once someone joins. After the meeting ends, get the transcript from the
-          meeting note this creates.
+          Teams records and transcribes the meeting automatically once someone joins. After the meeting ends, click Get transcript
+          on {note ? "this meeting note" : "the meeting note this creates"}.
         </DialogDescription>
       </DialogHeader>
-      <Field label="Meeting type (for the meeting note)">
-        <Select value={type} onChange={(e) => setType(e.target.value as MeetingType)}>
-          {Object.entries(MEETING_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-      </Field>
+      {!note && (
+        <Field label="Meeting type (for the meeting note)">
+          <Select value={type} onChange={(e) => setType(e.target.value as MeetingType)}>
+            {Object.entries(MEETING_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+        </Field>
+      )}
       <div className="grid gap-2 rounded-md border p-3">
         <p className="text-sm font-medium">Start a new Teams meeting now</p>
         <p className="text-xs text-muted-foreground">Named "{subject}". You get a join link to open and share with the room.</p>
@@ -84,7 +92,7 @@ function Start({ title, onLinked }: { title: string; onLinked: (id: ID) => void 
   );
 }
 
-function Linked({ meeting }: { meeting: MeetingNote }) {
+function Linked({ meeting, showNotesLink }: { meeting: MeetingNote; showNotesLink: boolean }) {
   const { toast } = useStore();
   return (
     <>
@@ -105,9 +113,11 @@ function Linked({ meeting }: { meeting: MeetingNote }) {
         >
           <Copy />Copy join link
         </Button>
-        <Button variant="outline" asChild>
-          <Link to={`/meeting?id=${meeting.id}`}><FileText />Meeting notes</Link>
-        </Button>
+        {showNotesLink && (
+          <Button variant="outline" asChild>
+            <Link to={`/meeting?id=${meeting.id}`}><FileText />Meeting notes</Link>
+          </Button>
+        )}
       </div>
     </>
   );

@@ -8,7 +8,7 @@ import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domai
 import { canWrite } from "@/domain/permissions";
 import { formatDate, formatShort } from "@/domain/dates";
 import { ConflictList } from "@/components/ConflictList";
-import { TranscriptCard } from "@/components/TeamsTranscribe";
+import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
 import { DueFlag, Empty, Field, PageHeader, PersonSelect, personName } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -168,6 +168,7 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
         description={`${MEETING_TYPE_LABELS[meeting.meetingType]} · ${formatDate(meeting.date)} · ${meeting.attendeeIds.map((id) => personName(data, id)).join(", ")}`}
         actions={
           <>
+            <TeamsTranscribeButton title={meeting.title} note={meeting} />
             {(meeting.meetingType !== "other") && <Button variant="outline" asChild><Link to="/tasks">Open task list</Link></Button>}
             <Button variant="outline" onClick={onLeave}>All meetings</Button>
           </>
