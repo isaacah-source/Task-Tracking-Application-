@@ -30,6 +30,9 @@ export function explain(status: number, code: string, message: string): string {
   }
   if (status === 404) return "Something the app needs was not found on the SharePoint site. It may have been deleted, or setup has not been run yet.";
   if (status === 429 || status === 503) return "Microsoft is busy. Wait a few seconds and try again.";
+  if (status === 400 && /not recognized/i.test(message)) {
+    return "The SharePoint lists need an update for this version of the app. Ask an admin to click \"Update SharePoint lists\" on the Admin page.";
+  }
   return message || `Microsoft Graph error ${status}`;
 }
 
@@ -153,6 +156,21 @@ export class GraphListsBackend implements Backend {
   async missingLists(): Promise<string[]> {
     const have = await this.lists(true);
     return TABLES.map((t) => SCHEMA[t].listName).filter((n) => !have.has(n));
+  }
+
+  async missingColumns(): Promise<string[]> {
+    const siteId = await this.site();
+    const have = await this.lists(true);
+    const out = await Promise.all(TABLES.map(async (t) => {
+      const d = SCHEMA[t];
+      const id = have.get(d.listName);
+      if (!id) return null;
+      const cols = await this.call<{ value: { name: string }[] }>("GET", `/sites/${siteId}/lists/${id}/columns?$select=name`);
+      const names = new Set(cols.value.map((c) => c.name));
+      const missing = Object.keys(d.columns).filter((f) => !names.has(columnName(f))).map(displayName);
+      return missing.length ? `${d.listName}: ${missing.join(", ")}` : null;
+    }));
+    return out.filter((x): x is string => !!x);
   }
 
   async setup(): Promise<void> {

@@ -11,6 +11,9 @@ import { today } from "@/domain/dates";
 import { MockRelationshipTracker } from "@/integrations/relationships/mock";
 import { UnconfiguredRelationshipTracker, WorkbookRelationshipTracker } from "@/integrations/relationships/workbook";
 import type { RelationshipTracker } from "@/integrations/relationships/adapter";
+import { MockTeamsTranscription } from "@/integrations/teams/mock";
+import { GraphTeamsTranscription } from "@/integrations/teams/graph";
+import type { TeamsTranscription } from "@/integrations/teams/adapter";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +35,7 @@ type Boot =
   | { state: "error"; message: string }
   | { state: "signin"; auth: Auth }
   | { state: "setup"; repo: Repository; auth: Auth; cfg: AppConfig; missing: string[] }
-  | { state: "ready"; repo: Repository; mode: "demo" | "sharepoint"; name: string; auth: Auth | null; tracker: RelationshipTracker };
+  | { state: "ready"; repo: Repository; mode: "demo" | "sharepoint"; name: string; auth: Auth | null; tracker: RelationshipTracker; teams: TeamsTranscription };
 
 
 async function start(): Promise<Boot> {
@@ -44,7 +47,7 @@ async function start(): Promise<Boot> {
     const repo = new Repository(backend, me, me?.email ?? "");
     await repo.refresh();
     // Demo mode uses sample contacts; nothing is written anywhere.
-    return { state: "ready", repo, mode: "demo", name: me?.name ?? "Demo", auth: null, tracker: new MockRelationshipTracker() };
+    return { state: "ready", repo, mode: "demo", name: me?.name ?? "Demo", auth: null, tracker: new MockRelationshipTracker(), teams: new MockTeamsTranscription(true) };
   }
 
   const auth = new Auth(cfg);
@@ -60,7 +63,7 @@ async function start(): Promise<Boot> {
   const tracker = cfg.trackerFolderUrl
     ? new WorkbookRelationshipTracker(cfg.trackerFolderUrl, cfg.trackerWorkbookName, auth.token)
     : new UnconfiguredRelationshipTracker();
-  return { state: "ready", repo, mode: "sharepoint", name: account.name ?? email, auth, tracker };
+  return { state: "ready", repo, mode: "sharepoint", name: account.name ?? email, auth, tracker, teams: new GraphTeamsTranscription(auth.token) };
 }
 
 export default function App() {
@@ -144,7 +147,7 @@ export default function App() {
   }
 
   return (
-    <DataProvider repo={boot.repo} mode={boot.mode} myName={boot.name} tracker={boot.tracker} signOut={() => boot.auth?.signOut()}>
+    <DataProvider repo={boot.repo} mode={boot.mode} myName={boot.name} tracker={boot.tracker} teams={boot.teams} signOut={() => boot.auth?.signOut()}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

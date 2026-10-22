@@ -9,6 +9,7 @@ import { PermissionError, ReasonRequiredError, Repository, RuleError, fieldLabel
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea, Label } from "@/components/ui/input";
+import type { TeamsTranscription } from "@/integrations/teams/adapter";
 import type { RelationshipTracker } from "@/integrations/relationships/adapter";
 import type { ProjectInvolvement } from "@/integrations/relationships/adapter";
 
@@ -27,6 +28,8 @@ export interface Store {
   mode: "demo" | "sharepoint";
   lastSync: Date | null;
   tracker: RelationshipTracker;
+  /** Teams meetings with automatic transcription, and their transcripts. */
+  teams: TeamsTranscription;
   /** Project links removed since the last relationship sync, so the tracker hears about them. */
   removedInvolvement: ProjectInvolvement[];
   /**
@@ -57,6 +60,7 @@ export function DataProvider(props: {
   mode: Store["mode"];
   myName: string;
   tracker: RelationshipTracker;
+  teams: TeamsTranscription;
   signOut: () => void;
   children: ReactNode;
 }) {
@@ -169,6 +173,7 @@ export function DataProvider(props: {
     mode: props.mode,
     lastSync,
     tracker: props.tracker,
+    teams: props.teams,
     removedInvolvement: removed.current,
     run,
     refresh,

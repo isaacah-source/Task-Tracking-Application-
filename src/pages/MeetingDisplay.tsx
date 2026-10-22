@@ -12,6 +12,7 @@ import { blockedTaskIds, blockers } from "@/domain/dependencies";
 import { formatDate } from "@/domain/dates";
 import { BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, Stat, StatusBadge, personName } from "@/components/common";
 import { Gantt } from "@/components/Gantt";
+import { TeamsTranscribeButton } from "@/components/TeamsTranscribe";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
@@ -33,7 +34,9 @@ export default function MeetingDisplayPage() {
     setParams(view ? `${q}${q ? "&" : ""}view=1` : q, { replace: !view });
   };
 
-  return presenting ? <Presentation o={o} onBack={() => update({}, false)} /> : <Setup o={o} update={update} />;
+  return presenting
+    ? <Presentation o={o} onBack={() => update({}, false)} onMeeting={(id) => update({ meetingId: id })} />
+    : <Setup o={o} update={update} />;
 }
 
 function Setup({ o, update }: { o: DisplayOptions; update: (p: Partial<DisplayOptions>, view?: boolean) => void }) {
@@ -53,7 +56,7 @@ function Setup({ o, update }: { o: DisplayOptions; update: (p: Partial<DisplayOp
         {PRESETS.map((p) => (
           <button
             key={p.label}
-            onClick={() => update({ ...defaultDisplayOptions(), title: o.title, departmentId: o.departmentId, ...p.options })}
+            onClick={() => update({ ...defaultDisplayOptions(), title: o.title, departmentId: o.departmentId, meetingId: o.meetingId, ...p.options })}
             className="rounded-lg border bg-card px-3 py-2 text-left hover:bg-accent"
           >
             <div className="text-sm font-medium">{p.label}</div>
@@ -173,7 +176,7 @@ function Setup({ o, update }: { o: DisplayOptions; update: (p: Partial<DisplayOp
   );
 }
 
-function Presentation({ o, onBack }: { o: DisplayOptions; onBack: () => void }) {
+function Presentation({ o, onBack, onMeeting }: { o: DisplayOptions; onBack: () => void; onMeeting: (id: ID) => void }) {
   const { data, today } = useStore();
   const nav = useNavigate();
   const r = useMemo(() => buildDisplay(data, o, today), [data, o, today]);
@@ -184,7 +187,8 @@ function Presentation({ o, onBack }: { o: DisplayOptions; onBack: () => void }) 
     <div className="fixed inset-0 z-40 overflow-auto bg-background print:static print:overflow-visible">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-card/95 px-6 py-3 backdrop-blur print:hidden">
         <Button variant="outline" onClick={onBack}><ArrowLeft />Change what's shown</Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <TeamsTranscribeButton title={o.title} meetingId={o.meetingId} onLinked={onMeeting} />
           <Button variant="outline" onClick={() => void document.documentElement.requestFullscreen?.().catch(() => {})}><Maximize />Full screen</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer />Print</Button>
         </div>

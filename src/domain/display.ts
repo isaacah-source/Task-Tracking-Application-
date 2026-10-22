@@ -31,6 +31,8 @@ export interface DisplayOptions {
   showSummary: boolean;
   showGantt: boolean;
   showTable: boolean;
+  /** Meeting note this display is transcribing into through Teams, if any. */
+  meetingId: ID | null;
 }
 
 export const SCOPE_LABELS: Record<DisplayScope, string> = {
@@ -55,6 +57,7 @@ export function defaultDisplayOptions(): DisplayOptions {
   return {
     title: "", scope: "org", departmentId: null, projectIds: [], personIds: [], status: "open", kinds: ["task", "event", "milestone"],
     window: "any", from: null, to: null, includeUndated: true, groupBy: "project", showSummary: true, showGantt: true, showTable: true,
+    meetingId: null,
   };
 }
 

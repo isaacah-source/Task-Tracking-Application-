@@ -188,7 +188,7 @@ export function buildSeed(today: string): DataSet {
   ];
 
   data.meetings = [
-    { id: "1", title: "Daily stand-up", meetingType: "daily", date: d(-1), notes: "Paper 1 sections 1-3 running late. Venue booking for wargame still open.", attendeeIds: ["1", "2", "3", "4"], createdById: "1" },
+    { id: "1", title: "Daily stand-up", meetingType: "daily", date: d(-1), notes: "Paper 1 sections 1-3 running late. Venue booking for wargame still open.", attendeeIds: ["1", "2", "3", "4"], createdById: "1", teamsMeetingId: "", teamsJoinUrl: "", transcript: "" },
   ];
 
   return data;

@@ -292,11 +292,40 @@ function ConnectionsAdmin() {
         <CardHeader><CardTitle>Where the data lives</CardTitle></CardHeader>
         <CardContent className="grid gap-2 text-sm">
           {mode === "demo" ? <p>Demo mode: sample data in this browser tab only.</p> : <p>SharePoint lists on the FSI Task Tracker site. Each list can be opened in SharePoint; avoid renaming lists or columns.</p>}
+          {mode === "sharepoint" && <ListUpdates />}
           <ul className="grid gap-1 text-muted-foreground sm:grid-cols-2">
             {TABLES.map((t) => <li key={t}><span className="font-medium text-foreground">{SCHEMA[t].listName}</span>: {SCHEMA[t].description}</li>)}
           </ul>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Adds columns that a newer version of the app needs to the existing SharePoint lists. */
+function ListUpdates() {
+  const { repo, run, toast } = useStore();
+  const [missing, setMissing] = useState<string[] | null>(null);
+  // Check once when the tab opens.
+  useEffect(() => {
+    repo.missingColumns().then(setMissing, () => setMissing(null));
+  }, [repo]);
+  if (!missing?.length) return null;
+  return (
+    <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900">
+      <p className="font-medium">The SharePoint lists need an update for this version of the app.</p>
+      <ul className="list-disc pl-5 text-xs">{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+      <p className="text-xs">Updating adds these columns. It keeps all data. Microsoft may ask you to approve the permission for changing lists.</p>
+      <Button
+        className="w-fit"
+        onClick={() => run(async () => {
+          await repo.updateLists();
+          setMissing(await repo.missingColumns());
+          toast("SharePoint lists updated");
+        })}
+      >
+        Update SharePoint lists
+      </Button>
     </div>
   );
 }

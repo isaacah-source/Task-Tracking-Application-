@@ -45,6 +45,8 @@ const FIELD_LABELS: Record<string, string> = {
 export const fieldLabel = (f: string) => FIELD_LABELS[f] ?? f;
 
 export type ProjectInput = Omit<Project, "id" | "createdAt" | "createdById">;
+type TeamsField = "teamsMeetingId" | "teamsJoinUrl" | "transcript";
+
 export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId"> & { sourceMeetingId?: ID | null };
 export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & { handoffNote?: string };
 
@@ -502,9 +504,18 @@ export class Repository {
 
   // ---- Meetings ----
 
-  async createMeeting(input: Omit<MeetingNote, "id" | "createdById">): Promise<MeetingNote> {
+  async createMeeting(
+    input: Omit<MeetingNote, "id" | "createdById" | TeamsField> & Partial<Pick<MeetingNote, TeamsField>>,
+  ): Promise<MeetingNote> {
     this.requireWrite();
-    return this.create("meetings", { ...input, createdById: this.me?.id ?? null });
+    return this.create("meetings", { teamsMeetingId: "", teamsJoinUrl: "", transcript: "", ...input, createdById: this.me?.id ?? null });
+  }
+
+  /** Saves a transcript fetched from Teams, cut to what a SharePoint long text column holds. */
+  async saveTranscript(id: ID, transcript: string): Promise<void> {
+    this.requireWrite();
+    const text = transcript.length > 60_000 ? `${transcript.slice(0, 60_000)}\n\n(Cut off here. The full transcript is in Teams.)` : transcript;
+    await this.update("meetings", id, { transcript: text });
   }
 
   async updateMeeting(id: ID, patch: Partial<Omit<MeetingNote, "id">>): Promise<void> {
@@ -591,6 +602,19 @@ export class Repository {
     const p = await this.create("people", clean);
     await this.log("person", p.id, null, "added", "", p.name);
     return p;
+  }
+
+  /** Columns this version of the app needs that the SharePoint lists do not have yet. Admins only. */
+  async missingColumns(): Promise<string[]> {
+    this.requireAdmin();
+    return this.backend.missingColumns();
+  }
+
+  /** Adds any missing lists and columns, keeping all data. Admins only. */
+  async updateLists(): Promise<void> {
+    this.requireAdmin();
+    await this.backend.setup();
+    await this.refresh();
   }
 
   /**
