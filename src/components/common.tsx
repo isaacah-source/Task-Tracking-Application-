@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, Clock, Lock } from "lucide-react";
-import type { DataSet, Department, ID, Person, Status } from "@/domain/types";
+import type { DataSet, Department, ID, Person, Stage, Status } from "@/domain/types";
 import { STATUS_LABELS } from "@/domain/types";
 import { dueFlag } from "@/domain/flags";
 import { formatDate } from "@/domain/dates";
@@ -64,6 +64,14 @@ export function DateText({ date, status, today }: { date: string | null; status:
 
 export function money(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+/** Says which stages a completed handoff milestone finished and who has the project now. */
+export function handoffMessage(done: Stage[], data: Pick<DataSet, "people" | "stages">): string {
+  const last = done[done.length - 1];
+  const next = data.stages.filter((s) => s.projectId === last.projectId && s.order > last.order).sort((a, b) => a.order - b.order)[0];
+  const names = done.map((s) => `"${s.name}"`).join(", ");
+  return `${names} complete; ${next ? `handed to ${personName(data, next.ownerId)} for ${next.name}` : "project done"}.`;
 }
 
 export function personName(data: Pick<DataSet, "people">, id: ID | null | undefined): string {

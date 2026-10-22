@@ -2,7 +2,7 @@
 // the project during it. Completing the active stage activates the next one and hands the
 // project to that stage's owner and department.
 
-import type { ID, Project, Stage } from "./types";
+import type { ID, Project, Stage, Task } from "./types";
 
 export function stagesFor(projectId: ID, stages: Stage[]): Stage[] {
   return stages.filter((s) => s.projectId === projectId).sort((a, b) => a.order - b.order);
@@ -44,6 +44,22 @@ export function completeStage(project: Project, stageId: ID, stages: Stage[], no
     projectUpdate.status = "done";
   }
   return { stageUpdates, projectUpdate, completed: stage, next };
+}
+
+/**
+ * The active stage whose handoff milestone is this task, when the task is done. Completing
+ * that task hands the project on automatically.
+ */
+export function stageTriggeredBy(task: Task, stages: Stage[]): Stage | null {
+  if (task.status !== "done") return null;
+  return stagesFor(task.projectId, stages).find((s) => s.status === "active" && s.handoffTaskId === task.id) ?? null;
+}
+
+/** The project's earliest open milestone task, or null. */
+export function nextMilestone(projectId: ID, tasks: Task[]): Task | null {
+  return tasks
+    .filter((t) => t.projectId === projectId && t.kind === "milestone" && t.status !== "done")
+    .sort((a, b) => (a.dueDate ?? "9999-12-31").localeCompare(b.dueDate ?? "9999-12-31"))[0] ?? null;
 }
 
 /** Which stage should be active when stages are first added: the first unfinished one. */

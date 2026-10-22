@@ -4,7 +4,7 @@ import { Plus, Search } from "lucide-react";
 import { useStore } from "@/data/store";
 import { canWrite } from "@/domain/permissions";
 import { departmentTree } from "@/domain/permissions";
-import { activeStage } from "@/domain/transitions";
+import { activeStage, nextMilestone } from "@/domain/transitions";
 import type { Status } from "@/domain/types";
 import { STATUS_LABELS } from "@/domain/types";
 import { DateText, DepartmentSelect, DueFlag, Empty, PageHeader, StatusBadge, deptName, money, personName } from "@/components/common";
@@ -26,7 +26,7 @@ export default function ProjectsPage() {
   const rows = useMemo(() => {
     const depts = dept ? departmentTree(dept, data.departments) : null;
     return data.projects
-      .filter((p) => !q || p.title.toLowerCase().includes(q.toLowerCase()) || p.milestone.toLowerCase().includes(q.toLowerCase()))
+      .filter((p) => !q || p.title.toLowerCase().includes(q.toLowerCase()))
       .filter((p) => !depts || depts.has(p.departmentId))
       .filter((p) => !type || p.outputTypeIds.includes(type))
       .filter((p) => (status === "open" ? p.status !== "done" : !status || p.status === status))
@@ -83,7 +83,7 @@ export default function ProjectsPage() {
                     <Link to={`/projects/${p.id}`} className="font-medium hover:underline">{p.title}</Link>
                     <div className="truncate text-xs text-muted-foreground">
                       {p.outputTypeIds.map((id) => data.outputTypes.find((o) => o.id === id)?.name).filter(Boolean).join(", ")}
-                      {p.milestone && ` · Next: ${p.milestone}`}
+                      {nextMilestone(p.id, data.tasks) && ` · Next milestone: ${nextMilestone(p.id, data.tasks)!.title}`}
                     </div>
                   </TD>
                   <TD>{deptName(data, p.departmentId)}</TD>

@@ -27,7 +27,6 @@ export interface ProjectHistory {
   owner: string;
   outputTypes: string[];
   status: string;
-  milestone: string;
   startDate: string | null;
   dueDate: string | null;
   plannedBudget: number;
@@ -90,7 +89,6 @@ export function buildHistory(data: DataSet, today: string): History {
       owner: name(p.ownerId),
       outputTypes: p.outputTypeIds.map(otName),
       status: STATUS_LABELS[p.status],
-      milestone: p.milestone,
       startDate: p.startDate,
       dueDate: p.dueDate,
       plannedBudget: p.plannedBudget,

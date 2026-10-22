@@ -11,8 +11,9 @@ loads sample departments, people, and projects. Nothing is saved.
 ## What it does
 
 - **Projects** belong to one department (Comms, Research, Ops with its Resourcing
-  sub-department, Leadership) and carry an owner, one or more output types, the next
-  milestone, operational details, dates, a planned budget, and actual spend.
+  sub-department, Leadership) and carry an owner, one or more output types, operational
+  details, dates, a planned budget, and actual spend. Milestones live in the project's tasks;
+  the project list shows the next open one.
 - **Tasks, events, and milestones** sit inside projects. Each has an owner, dates, an effort
   estimate in hours, and an estimated cost.
 - **Task order.** A task can wait on other tasks, in any project. The app will not let a task
@@ -45,7 +46,10 @@ loads sample departments, people, and projects. Nothing is saved.
   someone is over capacity, it suggests colleagues with room.
 - **Handoffs.** Give a project ordered stages, each with its own owner and department.
   Completing a stage hands the project to the next owner. For example, when Research
-  completes, Comms takes over for rollout.
+  completes, Comms takes over for rollout. Each stage can have a **handoff date** and a
+  **handoff milestone**: pick one of the project's tasks, or type a new name to create a
+  milestone due on the handoff date. When that task is marked done, the handoff happens on
+  its own and the stage's note records why.
 - **People and events.** Invite FSI colleagues to projects and to events inside them. Invited
   people see the invitation on their My work page.
 - **Org chart.** Who reports to whom, from each person's "Reports to" (set by admins). Anyone
@@ -141,7 +145,8 @@ Two things to know:
 site** again. Clicking it adds the new list and the new People columns (Reports to, lead
 departments). Nothing existing is changed.
 
-**New columns on existing lists** (for example the Teams columns on FSI Meeting Notes): an admin
+**New columns on existing lists** (for example the Teams columns on FSI Meeting Notes, or the
+handoff date and milestone on FSI Project Stages): an admin
 opens **Admin**, **Connections**. When a list is missing columns, a yellow box lists them with
 an **Update SharePoint lists** button. Updating adds the columns and keeps all data.
 

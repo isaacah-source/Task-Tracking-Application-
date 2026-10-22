@@ -8,7 +8,7 @@ const person = (id: string, over: Partial<Person> = {}): Person => ({
   id, name: `P${id}`, email: `${id}@example.org`, role: "staff", departmentId: null, weeklyCapacityHours: 40, active: true, managerId: null, leadDepartmentIds: [], ...over,
 });
 const project = (over: Partial<Project> = {}): Project => ({
-  id: "pr", title: "Paper", departmentId: "d", ownerId: "1", outputTypeIds: [], milestone: "",
+  id: "pr", title: "Paper", departmentId: "d", ownerId: "1", outputTypeIds: [],
   operationalDetails: "", startDate: null, dueDate: null, status: "inProgress", plannedBudget: 10000, actualSpend: 0,
   createdAt: "", createdById: null, ...over,
 });

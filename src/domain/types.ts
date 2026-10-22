@@ -95,7 +95,6 @@ export interface Project {
   departmentId: ID;
   ownerId: ID;
   outputTypeIds: ID[];
-  milestone: string;
   operationalDetails: string;
   startDate: string | null;
   dueDate: string | null;
@@ -168,6 +167,10 @@ export interface Stage {
   status: StageStatus;
   completedAt: string | null;
   handoffNote: string;
+  /** When the handoff is planned. */
+  handoffDate: string | null;
+  /** Task in this project whose completion hands the project on automatically. */
+  handoffTaskId: ID | null;
 }
 
 /** An external contact or organization from the Relationship Tracker, linked to a project. */

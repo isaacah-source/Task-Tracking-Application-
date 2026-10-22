@@ -7,7 +7,7 @@ import { Trash2 } from "lucide-react";
 import { RuleError, type TaskInput } from "@/data/repository";
 import { useStore } from "@/data/store";
 import { ConflictList } from "./ConflictList";
-import { Field, PersonSelect } from "./common";
+import { Field, PersonSelect, handoffMessage } from "./common";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
@@ -62,7 +62,8 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
       }
       const { projectId: _p, ...patch } = v;
       try {
-        await repo.updateTask(task!.id, patch, reason);
+        const { handedOff } = await repo.updateTask(task!.id, patch, reason);
+        if (handedOff.length) toast(handoffMessage(handedOff, data));
       } catch (e) {
         // A later due date that collides with downstream work: offer to move that work too.
         if (e instanceof RuleError && v.dueDate && v.dueDate !== task!.dueDate && e.problems.some((x) => x.includes("Move"))) {
