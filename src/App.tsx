@@ -95,6 +95,7 @@ export default function App() {
       <Centered>
         <Card className="max-w-sm text-center">
           <CardHeader>
+            <img src={`${import.meta.env.BASE_URL}icons/icon.svg`} alt="" className="mx-auto mb-2 h-14 w-14 rounded-xl" />
             <CardTitle className="text-xl">FSI Projects</CardTitle>
             <CardDescription>Sign in with your FSI Microsoft 365 account, the same one you use for Teams and Outlook.</CardDescription>
           </CardHeader>

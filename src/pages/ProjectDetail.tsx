@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowRight, CheckCircle2, Link2, Plus, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { ArrowRight, CheckCircle2, Link2, Pencil, Plus, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import { useStore } from "@/data/store";
-import type { ID, Project, RelationshipGroup, Task } from "@/domain/types";
+import type { ID, Project, RelationshipGroup, Stage, Task } from "@/domain/types";
 import { MEMBERSHIP_LABELS, RELATIONSHIP_GROUPS, RELATIONSHIP_GROUP_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { blockedTaskIds, blockers, topoOrder } from "@/domain/dependencies";
 import { activeStage, stagesFor } from "@/domain/transitions";
 import { formatDate } from "@/domain/dates";
 import { fieldLabel } from "@/data/repository";
 import {
-  BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, PersonSelect, Stat, StatusBadge, deptName, money, personName,
+  BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, handoffMessage, PersonSelect, Stat, StatusBadge, deptName, money, personName,
 } from "@/components/common";
 import { ProjectForm } from "@/components/ProjectForm";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -125,7 +125,7 @@ export default function ProjectDetailPage() {
 }
 
 function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boolean; onOpen: (t: Task | null) => void }) {
-  const { data, today, run, repo } = useStore();
+  const { data, today, run, repo, toast } = useStore();
   const tasks = topoOrder(data.tasks.filter((t) => t.projectId === project.id), data.dependencies);
   const blocked = blockedTaskIds(data.tasks, data.dependencies);
   const title = (id: ID) => data.tasks.find((t) => t.id === id)?.title ?? "";
@@ -166,7 +166,10 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
                   <TD><StatusBadge status={t.status} /></TD>
                   <TD onClick={(e) => e.stopPropagation()}>
                     {canEdit && t.status !== "done" && !blocked.has(t.id) && (
-                      <Button size="sm" variant="ghost" onClick={() => run(() => repo.updateTask(t.id, { status: "done" }), "Marked done")}>
+                      <Button size="sm" variant="ghost" onClick={() => run(async () => {
+                        const { handedOff } = await repo.updateTask(t.id, { status: "done" });
+                        toast(handedOff.length ? `Marked done. ${handoffMessage(handedOff, data)}` : "Marked done");
+                      })}>
                         <CheckCircle2 />Done
                       </Button>
                     )}
@@ -504,70 +507,84 @@ function BudgetTab({ project, canEdit }: { project: Project; canEdit: boolean })
 }
 
 function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean }) {
-  const { data, run, repo } = useStore();
+  const { data, run, repo, today } = useStore();
   const canDelete = repo.canDelete(project);
   const stages = stagesFor(project.id, data.stages);
-  const [name, setName] = useState("");
-  const [owner, setOwner] = useState<ID | null>(null);
-  const [dept, setDept] = useState<ID | null>(null);
+  const [editing, setEditing] = useState<Stage | null>(null);
   const [completing, setCompleting] = useState<ID | null>(null);
   const [note, setNote] = useState("");
-  const staff = data.people.filter((p) => p.role !== "viewer");
   const nextAfter = (id: ID) => stages.slice(stages.findIndex((s) => s.id === id) + 1).find((s) => s.status === "pending");
+  const task = (id: ID | null) => (id ? data.tasks.find((t) => t.id === id) ?? null : null);
 
   return (
     <div className="grid gap-6">
       <p className="text-sm text-muted-foreground">
         Stages say who owns the project at each point. When the current stage is complete, the project passes to the next stage's owner and department.
+        Give a stage a handoff milestone and the handoff happens on its own when that task is marked done.
         Example: Research complete, then Comms takes over for rollout.
       </p>
       {stages.length === 0 ? <Empty>No stages yet. The project stays with its owner.</Empty> : (
         <ol className="flex flex-col gap-2 md:flex-row md:items-stretch">
-          {stages.map((s, i) => (
-            <li key={s.id} className="flex items-center gap-2 md:flex-1">
-              <div className={`flex-1 rounded-lg border p-3 ${s.status === "active" ? "border-primary bg-accent" : s.status === "complete" ? "bg-muted/50" : "bg-card"}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{s.order}. {s.name}</span>
-                  <Badge variant={s.status === "active" ? "info" : s.status === "complete" ? "success" : "muted"}>{s.status === "active" ? "Current" : s.status === "complete" ? "Complete" : "Next"}</Badge>
+          {stages.map((s, i) => {
+            const trigger = task(s.handoffTaskId);
+            const late = s.status !== "complete" && !!s.handoffDate && s.handoffDate < today;
+            return (
+              <li key={s.id} className="flex items-center gap-2 md:flex-1">
+                <div className={`flex-1 rounded-lg border p-3 ${s.status === "active" ? "border-primary bg-accent" : s.status === "complete" ? "bg-muted/50" : "bg-card"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{s.order}. {s.name}</span>
+                    <Badge variant={s.status === "active" ? "info" : s.status === "complete" ? "success" : "muted"}>{s.status === "active" ? "Current" : s.status === "complete" ? "Complete" : "Next"}</Badge>
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">{personName(data, s.ownerId)} · {deptName(data, s.departmentId)}</div>
+                  {(s.handoffDate || trigger) && (
+                    <div className="mt-2 grid gap-0.5 text-xs">
+                      {s.handoffDate && (
+                        <div className={late ? "font-medium text-red-700" : ""}>Handoff date: {formatDate(s.handoffDate)}{late ? " (past due)" : ""}</div>
+                      )}
+                      {trigger && (
+                        <div>
+                          Handoff milestone: <span className="font-medium">{trigger.title}</span>
+                          {trigger.status === "done" ? " (done)" : s.status !== "complete" ? " (hands off when done)" : ""}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {s.handoffNote && <div className="mt-1 whitespace-pre-line text-xs">{s.handoffNote}</div>}
+                  {s.completedAt && <div className="mt-1 text-xs text-muted-foreground">Completed {formatDate(s.completedAt.slice(0, 10))}</div>}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {canEdit && s.status === "active" && (
+                      <Button size="sm" onClick={() => { setCompleting(s.id); setNote(""); }}>
+                        <CheckCircle2 />Complete{nextAfter(s.id) ? " and hand off" : ""}
+                      </Button>
+                    )}
+                    {canEdit && s.status !== "complete" && (
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(s)}><Pencil />Edit</Button>
+                    )}
+                    {canDelete && s.status === "pending" && (
+                      <Button size="sm" variant="ghost" onClick={() => run(() => repo.removeStage(s.id), "Stage removed")}><Trash2 />Remove</Button>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-1 text-sm text-muted-foreground">{personName(data, s.ownerId)} · {deptName(data, s.departmentId)}</div>
-                {s.handoffNote && <div className="mt-1 text-xs">{s.handoffNote}</div>}
-                {s.completedAt && <div className="mt-1 text-xs text-muted-foreground">Completed {formatDate(s.completedAt.slice(0, 10))}</div>}
-                {canEdit && s.status === "active" && (
-                  <Button size="sm" className="mt-2" onClick={() => { setCompleting(s.id); setNote(""); }}>
-                    <CheckCircle2 />Complete{nextAfter(s.id) ? " and hand off" : ""}
-                  </Button>
-                )}
-                {canDelete && s.status === "pending" && (
-                  <Button size="sm" variant="ghost" className="mt-2" onClick={() => run(() => repo.removeStage(s.id), "Stage removed")}><Trash2 />Remove</Button>
-                )}
-              </div>
-              {i < stages.length - 1 && <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />}
-            </li>
-          ))}
+                {i < stages.length - 1 && <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />}
+              </li>
+            );
+          })}
         </ol>
       )}
       {canEdit && (
         <Card>
           <CardHeader><CardTitle>Add a stage</CardTitle></CardHeader>
           <CardContent>
-            <form
-              className="grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-end"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (await run(() => repo.addStage(project.id, { name, ownerId: owner!, departmentId: dept! }), "Stage added")) {
-                  setName(""); setOwner(null); setDept(null);
-                }
-              }}
-            >
-              <Field label="Stage"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="For example: Comms rollout" required /></Field>
-              <Field label="Owner during this stage"><PersonSelect people={staff} value={owner} onChange={(id) => { setOwner(id); const p = staff.find((x) => x.id === id); if (p?.departmentId && !dept) setDept(p.departmentId); }} /></Field>
-              <Field label="Department"><DepartmentSelect departments={data.departments} value={dept} onChange={setDept} /></Field>
-              <Button type="submit" disabled={!name.trim() || !owner || !dept}>Add</Button>
-            </form>
+            <StageForm project={project} stage={null} onDone={() => {}} />
           </CardContent>
         </Card>
       )}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>Edit stage</DialogTitle></DialogHeader>
+          {editing && <StageForm key={editing.id} project={project} stage={editing} onDone={() => setEditing(null)} />}
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!completing} onOpenChange={(o) => !o && setCompleting(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Complete this stage?</DialogTitle></DialogHeader>
@@ -594,6 +611,67 @@ function HandoffsTab({ project, canEdit }: { project: Project; canEdit: boolean 
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Adds or edits a stage. "Handoff milestone" is an open field: pick one of the project's tasks
+ * from the suggestions, or type a new name to create a milestone due on the handoff date.
+ */
+function StageForm({ project, stage, onDone }: { project: Project; stage: Stage | null; onDone: () => void }) {
+  const { data, run, repo } = useStore();
+  const staff = data.people.filter((p) => p.role !== "viewer");
+  const projectTasks = data.tasks.filter((t) => t.projectId === project.id);
+  const [name, setName] = useState(stage?.name ?? "");
+  const [owner, setOwner] = useState<ID | null>(stage?.ownerId ?? null);
+  const [dept, setDept] = useState<ID | null>(stage?.departmentId ?? null);
+  const [date, setDate] = useState(stage?.handoffDate ?? "");
+  const [milestone, setMilestone] = useState(projectTasks.find((t) => t.id === stage?.handoffTaskId)?.title ?? "");
+  const listId = `stage-milestones-${stage?.id ?? "new"}`;
+  const existing = projectTasks.find((t) => t.title.trim().toLowerCase() === milestone.trim().toLowerCase());
+
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const ok = await run(async () => {
+          const handoffTaskId = await repo.handoffMilestone(project.id, milestone, date || null, owner);
+          const fields = { name, ownerId: owner!, departmentId: dept!, handoffDate: date || null, handoffTaskId };
+          if (stage) await repo.updateStage(stage.id, fields);
+          else await repo.addStage(project.id, fields);
+          return true;
+        }, stage ? "Stage saved" : "Stage added");
+        if (ok) {
+          if (!stage) { setName(""); setOwner(null); setDept(null); setDate(""); setMilestone(""); }
+          onDone();
+        }
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Stage"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="For example: Comms rollout" required /></Field>
+        <Field label="Owner during this stage"><PersonSelect people={staff} value={owner} onChange={(id) => { setOwner(id); const p = staff.find((x) => x.id === id); if (p?.departmentId && !dept) setDept(p.departmentId); }} /></Field>
+        <Field label="Department"><DepartmentSelect departments={data.departments} value={dept} onChange={setDept} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+        <Field label="Handoff date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field
+          label="Handoff milestone"
+          hint={!milestone.trim()
+            ? "Optional. When this task is marked done, the project hands off on its own."
+            : existing ? `Uses the task "${existing.title}". Marking it done hands the project off.` : `Creates a new milestone "${milestone.trim()}"${date ? ` due ${formatDate(date)}` : ""}. Marking it done hands the project off.`}
+        >
+          <Input list={listId} value={milestone} onChange={(e) => setMilestone(e.target.value)} placeholder="Pick a task or type a new milestone" />
+          <datalist id={listId}>
+            {projectTasks.filter((t) => t.status !== "done" || t.id === stage?.handoffTaskId).map((t) => <option key={t.id} value={t.title} />)}
+          </datalist>
+        </Field>
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={!name.trim() || !owner || !dept}>{stage ? "Save" : "Add"}</Button>
+        {stage && <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>}
+      </div>
+    </form>
   );
 }
 

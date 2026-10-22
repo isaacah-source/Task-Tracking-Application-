@@ -9,7 +9,7 @@ import { Button } from "./ui/button";
 
 export function blankProject(ownerId: string | null, departmentId: string | null): ProjectInput {
   return {
-    title: "", departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [], milestone: "",
+    title: "", departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [],
     operationalDetails: "", startDate: null, dueDate: null, status: "notStarted", plannedBudget: 0, actualSpend: 0,
   };
 }
@@ -65,9 +65,6 @@ export function ProjectForm({ initial, onSubmit, submitLabel, onCancel, disabled
           })}
         </div>
       </fieldset>
-      <Field label="Next milestone">
-        <Input value={v.milestone} onChange={(e) => set("milestone", e.target.value)} disabled={disabled} placeholder="For example: draft to reviewers" />
-      </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Start date">
           <Input type="date" value={v.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} disabled={disabled} />

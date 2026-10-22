@@ -43,49 +43,49 @@ export function buildSeed(today: string): DataSet {
   data.outputTypes = STANDARD_OUTPUT_TYPES.map((name, i) => ({ id: String(i + 1), name, active: true, sortOrder: i + 1 }));
 
   const project = (p: Partial<Project> & Pick<Project, "id" | "title" | "departmentId" | "ownerId">): Project => ({
-    outputTypeIds: [], milestone: "", operationalDetails: "", startDate: null, dueDate: null,
+    outputTypeIds: [], operationalDetails: "", startDate: null, dueDate: null,
     status: "inProgress", plannedBudget: 0, actualSpend: 0, createdAt: ts(-60), createdById: "1", ...p,
   });
 
   data.projects = [
     project({
       id: "1", title: "U.S.-China Strategic AI: Paper 1", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
-      milestone: "Full draft to external reviewers", startDate: d(-45), dueDate: d(30),
+      startDate: d(-45), dueDate: d(30),
       operationalDetails: "Three authors. External review by two research partners before release. Comms takes over for rollout when research completes.",
       plannedBudget: 12000, actualSpend: 4800,
     }),
     project({
       id: "2", title: "Paper 1 launch op-ed", departmentId: "1", ownerId: "2", outputTypeIds: ["2"],
-      milestone: "Placed with a national outlet", startDate: d(31), dueDate: d(45), status: "notStarted",
+      startDate: d(31), dueDate: d(45), status: "notStarted",
       operationalDetails: "Pitch to three outlets in order. Coordinate timing with the paper release.", plannedBudget: 0,
     }),
     project({
       id: "3", title: "Frontier AI crisis wargame", departmentId: "2", ownerId: "5", outputTypeIds: ["4"],
-      milestone: "Scenario book final", startDate: d(-20), dueDate: d(75),
+      startDate: d(-20), dueDate: d(75),
       operationalDetails: "Twelve players, two cells. Venue in D.C. Needs facilitator contracts.", plannedBudget: 30000, actualSpend: 9500,
     }),
     project({
       id: "4", title: "Congressional staff AI security briefing series", departmentId: "4", ownerId: "1", outputTypeIds: ["5"],
-      milestone: "Second briefing held", startDate: d(-30), dueDate: d(60),
+      startDate: d(-30), dueDate: d(60),
       operationalDetails: "Monthly briefings for committee staff. Rotate topics across the research agenda.", plannedBudget: 6000, actualSpend: 2100,
     }),
     project({
       id: "5", title: "Fall supporters dinner", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
-      milestone: "Invitations sent", startDate: d(-10), dueDate: d(21),
+      startDate: d(-10), dueDate: d(21),
       operationalDetails: "40 guests. Private room. Catering contract signed.", plannedBudget: 15000, actualSpend: 13200,
     }),
     project({
       id: "6", title: "Fellowship hiring round", departmentId: "5", ownerId: "4", outputTypeIds: [],
-      milestone: "Offers out", startDate: d(-5), dueDate: d(120), plannedBudget: 2000, actualSpend: 0, status: "inProgress",
+      startDate: d(-5), dueDate: d(120), plannedBudget: 2000, actualSpend: 0, status: "inProgress",
     }),
     // History: finished work the planning function learns from.
     project({
       id: "7", title: "Compute export controls explainer", departmentId: "2", ownerId: "6", outputTypeIds: ["1"],
-      milestone: "Published", startDate: d(-200), dueDate: d(-120), status: "done", plannedBudget: 8000, actualSpend: 9400,
+      startDate: d(-200), dueDate: d(-120), status: "done", plannedBudget: 8000, actualSpend: 9400,
     }),
     project({
       id: "8", title: "Spring AI security convening", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
-      milestone: "Held", startDate: d(-180), dueDate: d(-150), status: "done", plannedBudget: 20000, actualSpend: 18700,
+      startDate: d(-180), dueDate: d(-150), status: "done", plannedBudget: 20000, actualSpend: 18700,
     }),
   ];
 
@@ -152,10 +152,10 @@ export function buildSeed(today: string): DataSet {
   ];
 
   const stage = (s: Partial<Stage> & Pick<Stage, "id" | "projectId" | "order" | "name" | "ownerId" | "departmentId">): Stage => ({
-    status: "pending", completedAt: null, handoffNote: "", ...s,
+    status: "pending", completedAt: null, handoffNote: "", handoffDate: null, handoffTaskId: null, ...s,
   });
   data.stages = [
-    stage({ id: "1", projectId: "1", order: 1, name: "Research", ownerId: "3", departmentId: "2", status: "active" }),
+    stage({ id: "1", projectId: "1", order: 1, name: "Research", ownerId: "3", departmentId: "2", status: "active", handoffDate: d(30), handoffTaskId: "6" }),
     stage({ id: "2", projectId: "1", order: 2, name: "Comms rollout", ownerId: "2", departmentId: "1", handoffNote: "Comms owns release, press, and social once research is complete." }),
     stage({ id: "3", projectId: "3", order: 1, name: "Design", ownerId: "5", departmentId: "2", status: "active" }),
     stage({ id: "4", projectId: "3", order: 2, name: "Logistics", ownerId: "4", departmentId: "3" }),

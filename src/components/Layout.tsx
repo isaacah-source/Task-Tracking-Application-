@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  BarChart3, CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
+  CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
 } from "lucide-react";
 import { useStore } from "@/data/store";
 import { isAdmin } from "@/domain/permissions";
@@ -29,7 +29,7 @@ export function Layout() {
     <div className="min-h-screen md:flex">
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
         <div className="flex items-center gap-2 px-5 py-5">
-          <BarChart3 className="h-6 w-6 text-primary" />
+          <img src={`${import.meta.env.BASE_URL}icons/icon.svg`} alt="" className="h-8 w-8 rounded-md" />
           <div>
             <div className="text-sm font-semibold leading-tight">FSI Projects</div>
             <div className="text-xs text-muted-foreground">Frontier Security Institute</div>

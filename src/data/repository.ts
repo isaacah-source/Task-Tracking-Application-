@@ -11,7 +11,7 @@ import { emptyDataSet, STATUS_LABELS } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
 import { canDeleteInDepartment, canEditProject, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
 import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
-import { completeStage, stagesFor } from "@/domain/transitions";
+import { completeStage, stageTriggeredBy, stagesFor } from "@/domain/transitions";
 import { isIsoDate } from "@/domain/dates";
 
 /** A change broke a rule. `problems` are shown to the person as a list. */
@@ -48,7 +48,7 @@ export type ProjectInput = Omit<Project, "id" | "createdAt" | "createdById">;
 type TeamsField = "teamsMeetingId" | "teamsJoinUrl" | "transcript";
 
 export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId"> & { sourceMeetingId?: ID | null };
-export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & { handoffNote?: string };
+export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & Partial<Pick<Stage, "handoffNote" | "handoffDate" | "handoffTaskId">>;
 
 function stringify(v: unknown): string {
   if (v == null) return "";
@@ -275,6 +275,7 @@ export class Repository {
     });
     await this.log("task", task.id, task.projectId, "created", "", task.title);
     for (const p of predecessorIds) await this.create("dependencies", { predecessorId: p, successorId: task.id });
+    await this.handOffAfter(task);
     return task;
   }
 
@@ -282,11 +283,11 @@ export class Repository {
    * Saves task changes. Date changes need `reason`. Status and date changes must respect the
    * task's dependencies; otherwise this throws RuleError with the reasons.
    */
-  async updateTask(id: ID, patch: Partial<Omit<Task, "id">>, reason = ""): Promise<void> {
+  async updateTask(id: ID, patch: Partial<Omit<Task, "id">>, reason = ""): Promise<{ handedOff: Stage[] }> {
     const before = this.task(id);
     this.requireEdit(this.project(before.projectId));
     const keys = changedKeys(before, patch);
-    if (!keys.length) return;
+    if (!keys.length) return { handedOff: [] };
     const dateKeys = keys.filter((k) => DATE_FIELDS.has(k));
     if (dateKeys.length && !reason.trim()) throw new ReasonRequiredError(dateKeys);
     const next: Task = { ...before, ...patch };
@@ -301,6 +302,7 @@ export class Repository {
       const nu = k === "status" ? STATUS_LABELS[next.status] : patch[k];
       await this.log("task", id, before.projectId, k, old, nu, DATE_FIELDS.has(k) ? reason.trim() : "");
     }
+    return { handedOff: "status" in changes ? await this.handOffAfter(this.task(id)) : [] };
   }
 
   /**
@@ -339,6 +341,7 @@ export class Repository {
 
   /** Removes a task with its links and invitations. Callers check permission and log first. */
   private async removeTaskRecords(id: ID): Promise<void> {
+    for (const s of this.data.stages.filter((x) => x.handoffTaskId === id)) await this.update("stages", s.id, { handoffTaskId: null });
     for (const d of this.data.dependencies.filter((x) => x.predecessorId === id || x.successorId === id)) await this.remove("dependencies", d.id);
     for (const m of this.data.memberships.filter((x) => x.targetType === "task" && x.targetId === id)) await this.remove("memberships", m.id);
     await this.remove("tasks", id);
@@ -430,6 +433,7 @@ export class Repository {
   async addStage(projectId: ID, s: StageInput): Promise<Stage> {
     this.requireEdit(this.project(projectId));
     if (!s.name.trim()) throw new RuleError(["Name the stage."]);
+    this.checkHandoffTask(projectId, s.handoffTaskId);
     const existing = stagesFor(projectId, this.data.stages);
     const hasActive = existing.some((x) => x.status === "active");
     const allDone = existing.length > 0 && existing.every((x) => x.status === "complete");
@@ -439,7 +443,7 @@ export class Repository {
     const status: Stage["status"] = !hasActive && !allDone ? "active" : "pending";
     const stage = await this.create("stages", {
       projectId, order, name: s.name.trim(), ownerId: s.ownerId, departmentId: s.departmentId, status, completedAt: null,
-      handoffNote: s.handoffNote ?? "",
+      handoffNote: s.handoffNote ?? "", handoffDate: s.handoffDate ?? null, handoffTaskId: s.handoffTaskId ?? null,
     });
     await this.log("stage", stage.id, projectId, "added", "", stage.name);
     return stage;
@@ -449,7 +453,38 @@ export class Repository {
     const s = this.data.stages.find((x) => x.id === id);
     if (!s) return;
     this.requireEdit(this.project(s.projectId));
-    await this.update("stages", id, patch);
+    if (patch.name !== undefined && !patch.name.trim()) throw new RuleError(["Name the stage."]);
+    this.checkHandoffTask(s.projectId, patch.handoffTaskId);
+    if (s.status === "complete" && ("handoffTaskId" in patch || "handoffDate" in patch)) {
+      throw new RuleError([`"${s.name}" is already complete.`]);
+    }
+    await this.update("stages", id, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
+    // A milestone that is already done hands off as soon as it is chosen.
+    const t = patch.handoffTaskId ? this.data.tasks.find((x) => x.id === patch.handoffTaskId) : null;
+    if (t) await this.handOffAfter(t);
+  }
+
+  private checkHandoffTask(projectId: ID, taskId: ID | null | undefined) {
+    if (taskId && this.data.tasks.find((t) => t.id === taskId)?.projectId !== projectId) {
+      throw new RuleError(["The handoff milestone must be a task in this project."]);
+    }
+  }
+
+  /**
+   * Finds the project's task named `title` (any case), or creates a milestone with that name due
+   * on `date` and owned by `ownerId`. Returns its id. Backs the stage's open "Handoff milestone"
+   * field, which takes an existing task or a new milestone's name.
+   */
+  async handoffMilestone(projectId: ID, title: string, date: string | null, ownerId: ID | null): Promise<ID | null> {
+    const name = title.trim();
+    if (!name) return null;
+    const found = this.data.tasks.find((t) => t.projectId === projectId && t.title.trim().toLowerCase() === name.toLowerCase());
+    if (found) return found.id;
+    const t = await this.createTask({
+      projectId, title: name, kind: "milestone", ownerId, startDate: date, dueDate: date, status: "notStarted",
+      effortHours: 0, estimatedCost: 0, notes: "Handoff milestone. Completing it hands the project to the next stage.",
+    });
+    return t.id;
   }
 
   async removeStage(id: ID): Promise<void> {
@@ -466,9 +501,34 @@ export class Repository {
   async completeStage(projectId: ID, stageId: ID, note = ""): Promise<{ next: Stage | null }> {
     const project = this.project(projectId);
     this.requireEdit(project);
+    return this.handOff(project, stageId, note);
+  }
+
+  /**
+   * Completes the active stage when its handoff milestone (this task) is done, and keeps going
+   * while the next stage's milestone is already done too. Returns the stages completed.
+   */
+  private async handOffAfter(task: Task): Promise<Stage[]> {
+    const done: Stage[] = [];
+    let current: Task | null = task;
+    for (let guard = 0; current && guard < 50; guard++) {
+      const stage = stageTriggeredBy(current, this.data.stages);
+      if (!stage) break;
+      const { next } = await this.handOff(this.project(task.projectId), stage.id, `Handed off automatically: "${current.title}" was completed.`);
+      done.push(stage);
+      current = next?.handoffTaskId ? this.data.tasks.find((t) => t.id === next.handoffTaskId) ?? null : null;
+    }
+    return done;
+  }
+
+  private async handOff(project: Project, stageId: ID, note: string): Promise<{ next: Stage | null }> {
+    const projectId = project.id;
     const h = completeStage(project, stageId, this.data.stages, this.nowIso());
     for (const u of h.stageUpdates) await this.update("stages", u.id, { status: u.status, completedAt: u.completedAt });
-    if (note.trim()) await this.update("stages", h.completed.id, { handoffNote: note.trim() });
+    if (note.trim()) {
+      const old = h.completed.handoffNote.trim();
+      await this.update("stages", h.completed.id, { handoffNote: old ? `${old}\n${note.trim()}` : note.trim() });
+    }
     await this.log("stage", h.completed.id, projectId, "completed", h.completed.name, h.next ? `Handed to ${h.next.name}` : "Project done", note.trim());
     const keys = Object.keys(h.projectUpdate) as (keyof typeof h.projectUpdate)[];
     if (keys.length) {
