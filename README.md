@@ -12,8 +12,7 @@ loads sample departments, people, and projects. Nothing is saved.
 
 - **Projects** belong to one department (Comms, Research, Ops with its Resourcing
   sub-department, Leadership) and carry an owner, one or more output types, the next
-  milestone, an immediate or long-term horizon, operational details, dates, a planned
-  budget, and actual spend.
+  milestone, operational details, dates, a planned budget, and actual spend.
 - **Tasks, events, and milestones** sit inside projects. Each has an owner, dates, an effort
   estimate in hours, and an estimated cost.
 - **Task order.** A task can wait on other tasks, in any project. The app will not let a task
@@ -29,6 +28,13 @@ loads sample departments, people, and projects. Nothing is saved.
   Calendar shows the whole org, or one department or sub-department.
 - **Task list** for daily meetings and monthly, quarterly, and yearly reviews. Click any column
   to sort. Overdue work and work due within a week carry a flag and always appear.
+- **Meeting display.** Choose what a meeting sees, then show it full screen: one department
+  (sub-departments included), chosen projects, chosen people, or the whole organization;
+  open work, done work, or both; tasks, events, and milestones; any time, overdue only, the
+  next 7 or 30 days, this month or quarter, or dates you pick. Group by project, person, or
+  department, and show a summary, a timeline (Gantt) per group, and a task list. Presets
+  cover a department meeting, a whole-org meeting, and a weekly check-in. The choices live in
+  the page address, so a display can be bookmarked. Print works too.
 - **Meeting notes mode.** Take notes and assign work during a meeting. While you fill in an
   assignment, the app checks it against existing commitments: other deadlines and events
   for that person, their hours against capacity, the project budget, and task order. When

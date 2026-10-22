@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, Printer } from "lucide-react";
 import { useStore } from "@/data/store";
 import type { Task } from "@/domain/types";
-import { HORIZON_LABELS, STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
+import { STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { blockedTaskIds, blockers } from "@/domain/dependencies";
 import { departmentTree } from "@/domain/permissions";
 import { dueFlag, inReview, REVIEW_PERIOD_LABELS, reviewWindow, type ReviewPeriod } from "@/domain/flags";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-type SortKey = "title" | "project" | "department" | "owner" | "kind" | "horizon" | "startDate" | "dueDate" | "status" | "effortHours" | "estimatedCost" | "flag";
+type SortKey = "title" | "project" | "department" | "owner" | "kind" | "startDate" | "dueDate" | "status" | "effortHours" | "estimatedCost" | "flag";
 
 const FLAG_RANK = { overdue: 0, dueSoon: 1, blocked: 2, none: 3 };
 const STATUS_RANK = { inProgress: 0, notStarted: 1, onHold: 2, done: 3 };
@@ -120,7 +120,6 @@ export default function TasksPage() {
               <Header k="department">Department</Header>
               <Header k="owner">Owner</Header>
               <Header k="kind">Type</Header>
-              <Header k="horizon">Horizon</Header>
               <Header k="startDate">Start</Header>
               <Header k="dueDate">Due</Header>
               <Header k="status">Status</Header>
@@ -144,7 +143,6 @@ export default function TasksPage() {
                   <TD className="whitespace-nowrap">{deptName(data, project(t)?.departmentId)}</TD>
                   <TD className="whitespace-nowrap">{personName(data, t.ownerId)}</TD>
                   <TD>{TASK_KIND_LABELS[t.kind]}</TD>
-                  <TD>{HORIZON_LABELS[t.horizon]}</TD>
                   <TD className="whitespace-nowrap">{t.startDate ? formatDate(t.startDate) : ""}</TD>
                   <TD className="whitespace-nowrap"><DateText date={t.dueDate} status={t.status} today={today} /></TD>
                   <TD title={STATUS_LABELS[t.status]}><StatusBadge status={t.status} /></TD>

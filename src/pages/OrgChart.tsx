@@ -72,6 +72,9 @@ function Node({ person, kids }: { person: Person; kids: Map<ID, Person[]> }) {
   );
 }
 
+/** One color for every title, and long titles wrap inside the card instead of running past it. */
+const TITLE = "max-w-full whitespace-normal break-words text-left leading-snug";
+
 function PersonCard({ person }: { person: Person }) {
   const { data } = useStore();
   const owns = data.departments.filter((d) => d.ownerId === person.id);
@@ -82,9 +85,9 @@ function PersonCard({ person }: { person: Person }) {
       <div className="font-semibold leading-tight">{person.name}</div>
       <div className="mt-0.5 text-xs text-muted-foreground">{deptName(data, person.departmentId) || "No department"}</div>
       <div className="mt-2 flex flex-wrap gap-1">
-        {person.role === "admin" && <Badge variant="default">Admin</Badge>}
-        {owns.map((d) => <Badge key={d.id} variant="info">Owner: {d.name}</Badge>)}
-        {leads.length > 0 && <Badge variant="warning">Task Lead: {leads.join(", ")}</Badge>}
+        {person.role === "admin" && <Badge variant="info" className={TITLE}>Admin</Badge>}
+        {owns.map((d) => <Badge key={d.id} variant="info" className={TITLE}>Owner: {d.name}</Badge>)}
+        {leads.length > 0 && <Badge variant="info" className={TITLE}>Task Lead: {leads.join(", ")}</Badge>}
       </div>
       <Link to="/people" className="mt-2 block text-xs text-muted-foreground hover:underline">{open} open task{open === 1 ? "" : "s"}</Link>
     </div>

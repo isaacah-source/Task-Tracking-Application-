@@ -141,7 +141,7 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
       ) : (
         <Table>
           <THead>
-            <TR><TH>Task</TH><TH>Owner</TH><TH>Horizon</TH><TH>Due</TH><TH>Waits on</TH><TH>Status</TH><TH></TH></TR>
+            <TR><TH>Task</TH><TH>Owner</TH><TH>Due</TH><TH>Waits on</TH><TH>Status</TH><TH></TH></TR>
           </THead>
           <TBody>
             {tasks.map((t) => {
@@ -153,7 +153,6 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
                     <div className="text-xs text-muted-foreground">{TASK_KIND_LABELS[t.kind]}{t.effortHours ? ` · ${t.effortHours} h` : ""}{t.estimatedCost ? ` · ${money(t.estimatedCost)}` : ""}</div>
                   </TD>
                   <TD>{personName(data, t.ownerId)}</TD>
-                  <TD>{t.horizon === "immediate" ? "Immediate" : "Long term"}</TD>
                   <TD>
                     <div className="flex flex-col items-start gap-1">
                       <DateText date={t.dueDate} status={t.status} today={today} />

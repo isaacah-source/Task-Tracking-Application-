@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import type { Horizon, ID, Status, Task, TaskKind } from "@/domain/types";
-import { HORIZON_LABELS, STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
+import type { ID, Status, Task, TaskKind } from "@/domain/types";
+import { STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { checkAssignment } from "@/domain/conflicts";
 import { predecessorIds, successorIds } from "@/domain/dependencies";
 import { Trash2 } from "lucide-react";
@@ -24,7 +24,7 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
     task
       ? { ...task }
       : {
-          projectId, title: "", kind: "task", ownerId: null, horizon: "immediate", startDate: null, dueDate: null, status: "notStarted",
+          projectId, title: "", kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
           effortHours: 0, estimatedCost: 0, notes: "",
         },
   );
@@ -108,18 +108,13 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
               <Field label="What needs to happen">
                 <Input value={v.title} onChange={(e) => set("title", e.target.value)} required autoFocus={!editing} />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Owner">
                   <PersonSelect people={data.people.filter((p) => p.role !== "viewer")} value={v.ownerId} onChange={(id) => set("ownerId", id)} allowEmpty />
                 </Field>
                 <Field label="Type">
                   <Select value={v.kind} onChange={(e) => set("kind", e.target.value as TaskKind)}>
                     {Object.entries(TASK_KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Horizon">
-                  <Select value={v.horizon} onChange={(e) => set("horizon", e.target.value as Horizon)}>
-                    {Object.entries(HORIZON_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                   </Select>
                 </Field>
               </div>

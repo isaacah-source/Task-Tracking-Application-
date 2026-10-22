@@ -43,14 +43,14 @@ export function buildSeed(today: string): DataSet {
   data.outputTypes = STANDARD_OUTPUT_TYPES.map((name, i) => ({ id: String(i + 1), name, active: true, sortOrder: i + 1 }));
 
   const project = (p: Partial<Project> & Pick<Project, "id" | "title" | "departmentId" | "ownerId">): Project => ({
-    outputTypeIds: [], milestone: "", horizon: "immediate", operationalDetails: "", startDate: null, dueDate: null,
+    outputTypeIds: [], milestone: "", operationalDetails: "", startDate: null, dueDate: null,
     status: "inProgress", plannedBudget: 0, actualSpend: 0, createdAt: ts(-60), createdById: "1", ...p,
   });
 
   data.projects = [
     project({
       id: "1", title: "U.S.-China Strategic AI: Paper 1", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
-      milestone: "Full draft to external reviewers", horizon: "immediate", startDate: d(-45), dueDate: d(30),
+      milestone: "Full draft to external reviewers", startDate: d(-45), dueDate: d(30),
       operationalDetails: "Three authors. External review by two research partners before release. Comms takes over for rollout when research completes.",
       plannedBudget: 12000, actualSpend: 4800,
     }),
@@ -61,7 +61,7 @@ export function buildSeed(today: string): DataSet {
     }),
     project({
       id: "3", title: "Frontier AI crisis wargame", departmentId: "2", ownerId: "5", outputTypeIds: ["4"],
-      milestone: "Scenario book final", horizon: "longTerm", startDate: d(-20), dueDate: d(75),
+      milestone: "Scenario book final", startDate: d(-20), dueDate: d(75),
       operationalDetails: "Twelve players, two cells. Venue in D.C. Needs facilitator contracts.", plannedBudget: 30000, actualSpend: 9500,
     }),
     project({
@@ -75,7 +75,7 @@ export function buildSeed(today: string): DataSet {
       operationalDetails: "40 guests. Private room. Catering contract signed.", plannedBudget: 15000, actualSpend: 13200,
     }),
     project({
-      id: "6", title: "Fellowship hiring round", departmentId: "5", ownerId: "4", outputTypeIds: [], horizon: "longTerm",
+      id: "6", title: "Fellowship hiring round", departmentId: "5", ownerId: "4", outputTypeIds: [],
       milestone: "Offers out", startDate: d(-5), dueDate: d(120), plannedBudget: 2000, actualSpend: 0, status: "inProgress",
     }),
     // History: finished work the planning function learns from.
@@ -90,7 +90,7 @@ export function buildSeed(today: string): DataSet {
   ];
 
   const task = (t: Partial<Task> & Pick<Task, "id" | "projectId" | "title">): Task => ({
-    kind: "task", ownerId: null, horizon: "immediate", startDate: null, dueDate: null, status: "notStarted",
+    kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
     effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, completedAt: null, ...t,
   });
 
@@ -108,8 +108,8 @@ export function buildSeed(today: string): DataSet {
     // Wargame
     task({ id: "9", projectId: "3", title: "Scenario design", ownerId: "5", startDate: d(-20), dueDate: d(6), status: "inProgress", effortHours: 35 }),
     task({ id: "10", projectId: "3", title: "Book venue", ownerId: "4", startDate: d(-5), dueDate: d(-1), effortHours: 3, estimatedCost: 6000 }),
-    task({ id: "11", projectId: "3", title: "Recruit players", ownerId: "1", startDate: d(7), dueDate: d(35), effortHours: 12, horizon: "longTerm" }),
-    task({ id: "12", projectId: "3", title: "Wargame day", kind: "event", ownerId: "5", startDate: d(70), dueDate: d(70), effortHours: 10, estimatedCost: 9000, horizon: "longTerm" }),
+    task({ id: "11", projectId: "3", title: "Recruit players", ownerId: "1", startDate: d(7), dueDate: d(35), effortHours: 12 }),
+    task({ id: "12", projectId: "3", title: "Wargame day", kind: "event", ownerId: "5", startDate: d(70), dueDate: d(70), effortHours: 10, estimatedCost: 9000 }),
     // Briefings
     task({ id: "13", projectId: "4", title: "Briefing 2: compute governance", kind: "event", ownerId: "1", startDate: d(3), dueDate: d(3), effortHours: 6, estimatedCost: 700 }),
     task({ id: "14", projectId: "4", title: "Prepare briefing 2 slides", ownerId: "6", startDate: d(-4), dueDate: d(2), status: "inProgress", effortHours: 10 }),
@@ -119,7 +119,7 @@ export function buildSeed(today: string): DataSet {
     task({ id: "17", projectId: "5", title: "Supporters dinner", kind: "event", ownerId: "1", startDate: d(21), dueDate: d(21), effortHours: 4, estimatedCost: 1500 }),
     // Hiring
     task({ id: "18", projectId: "6", title: "Post fellowship call", ownerId: "4", startDate: d(-5), dueDate: d(5), status: "inProgress", effortHours: 4, estimatedCost: 500 }),
-    task({ id: "19", projectId: "6", title: "Review applications", ownerId: "3", startDate: d(40), dueDate: d(70), effortHours: 20, horizon: "longTerm" }),
+    task({ id: "19", projectId: "6", title: "Review applications", ownerId: "3", startDate: d(40), dueDate: d(70), effortHours: 20 }),
     // History
     task({ id: "20", projectId: "7", title: "Draft explainer", ownerId: "6", startDate: d(-200), dueDate: d(-140), status: "done", effortHours: 50, completedAt: ts(-135) }),
     task({ id: "21", projectId: "8", title: "Run convening", kind: "event", ownerId: "4", startDate: d(-150), dueDate: d(-150), status: "done", effortHours: 20, completedAt: ts(-150) }),

@@ -22,7 +22,7 @@ describe("projects", () => {
   it("creates a project with stages and logs it", async () => {
     const p = await repo.createProject(
       {
-        title: "  New paper ", departmentId: "2", ownerId: "3", outputTypeIds: ["1"], milestone: "", horizon: "immediate",
+        title: "  New paper ", departmentId: "2", ownerId: "3", outputTypeIds: ["1"], milestone: "",
         operationalDetails: "", startDate: "2026-11-01", dueDate: "2026-12-01", status: "notStarted", plannedBudget: 0, actualSpend: 0,
       },
       [{ name: "Research", ownerId: "3", departmentId: "2" }, { name: "Comms rollout", ownerId: "2", departmentId: "1" }],
@@ -36,7 +36,7 @@ describe("projects", () => {
   it("requires a name, department, and owner", async () => {
     await expect(
       repo.createProject({
-        title: "", departmentId: "x", ownerId: "x", outputTypeIds: [], milestone: "", horizon: "immediate", operationalDetails: "",
+        title: "", departmentId: "x", ownerId: "x", outputTypeIds: [], milestone: "", operationalDetails: "",
         startDate: null, dueDate: null, status: "notStarted", plannedBudget: 0, actualSpend: 0,
       }),
     ).rejects.toMatchObject({ problems: ["Give the project a name.", "Choose a department.", "Choose an owner."] });
@@ -156,7 +156,7 @@ describe("tasks and dependencies", () => {
   it("adds dependencies and rejects loops", async () => {
     await expect(repo.addDependency("6", "1")).rejects.toBeInstanceOf(RuleError);
     const t = await repo.createTask({
-      projectId: "1", title: "Press list", kind: "task", ownerId: "3", horizon: "immediate", startDate: "2026-11-20", dueDate: "2026-11-25",
+      projectId: "1", title: "Press list", kind: "task", ownerId: "3", startDate: "2026-11-20", dueDate: "2026-11-25",
       status: "notStarted", effortHours: 2, estimatedCost: 0, notes: "",
     });
     await repo.addDependency("6", t.id);
@@ -166,7 +166,7 @@ describe("tasks and dependencies", () => {
   it("checks ordering when a task is created with predecessors", async () => {
     await expect(
       repo.createTask({
-        projectId: "1", title: "Too early", kind: "task", ownerId: "3", horizon: "immediate", startDate: TODAY, dueDate: TODAY,
+        projectId: "1", title: "Too early", kind: "task", ownerId: "3", startDate: TODAY, dueDate: TODAY,
         status: "notStarted", effortHours: 1, estimatedCost: 0, notes: "",
       }, ["5"]),
     ).rejects.toBeInstanceOf(RuleError);

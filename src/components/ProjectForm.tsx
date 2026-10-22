@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Horizon, Project, Status } from "@/domain/types";
-import { HORIZON_LABELS, STATUS_LABELS } from "@/domain/types";
+import type { Project, Status } from "@/domain/types";
+import { STATUS_LABELS } from "@/domain/types";
 import type { ProjectInput } from "@/data/repository";
 import { useStore } from "@/data/store";
 import { DepartmentSelect, Field, PersonSelect } from "./common";
@@ -9,7 +9,7 @@ import { Button } from "./ui/button";
 
 export function blankProject(ownerId: string | null, departmentId: string | null): ProjectInput {
   return {
-    title: "", departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [], milestone: "", horizon: "immediate",
+    title: "", departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [], milestone: "",
     operationalDetails: "", startDate: null, dueDate: null, status: "notStarted", plannedBudget: 0, actualSpend: 0,
   };
 }
@@ -65,16 +65,9 @@ export function ProjectForm({ initial, onSubmit, submitLabel, onCancel, disabled
           })}
         </div>
       </fieldset>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Next milestone">
-          <Input value={v.milestone} onChange={(e) => set("milestone", e.target.value)} disabled={disabled} placeholder="For example: draft to reviewers" />
-        </Field>
-        <Field label="Horizon">
-          <Select value={v.horizon} onChange={(e) => set("horizon", e.target.value as Horizon)} disabled={disabled}>
-            {Object.entries(HORIZON_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </Select>
-        </Field>
-      </div>
+      <Field label="Next milestone">
+        <Input value={v.milestone} onChange={(e) => set("milestone", e.target.value)} disabled={disabled} placeholder="For example: draft to reviewers" />
+      </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Start date">
           <Input type="date" value={v.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} disabled={disabled} />

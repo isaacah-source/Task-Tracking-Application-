@@ -25,9 +25,6 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   viewer: "Read-only.",
 };
 
-/** Immediate work vs. long-term work. */
-export type Horizon = "immediate" | "longTerm";
-export const HORIZON_LABELS: Record<Horizon, string> = { immediate: "Immediate", longTerm: "Long term" };
 
 export type Status = "notStarted" | "inProgress" | "done" | "onHold";
 export const STATUS_LABELS: Record<Status, string> = {
@@ -99,7 +96,6 @@ export interface Project {
   ownerId: ID;
   outputTypeIds: ID[];
   milestone: string;
-  horizon: Horizon;
   operationalDetails: string;
   startDate: string | null;
   dueDate: string | null;
@@ -116,7 +112,6 @@ export interface Task {
   title: string;
   kind: TaskKind;
   ownerId: ID | null;
-  horizon: Horizon;
   startDate: string | null;
   dueDate: string | null;
   status: Status;

@@ -38,7 +38,7 @@ const DATE_FIELDS = new Set(["startDate", "dueDate"]);
 const FIELD_LABELS: Record<string, string> = {
   startDate: "Start date", dueDate: "Due date", ownerId: "Owner", departmentId: "Department",
   plannedBudget: "Planned budget", actualSpend: "Actual spend", status: "Status", title: "Title",
-  milestone: "Milestone", horizon: "Horizon", operationalDetails: "Operational details",
+  milestone: "Milestone", operationalDetails: "Operational details",
   outputTypeIds: "Output types", effortHours: "Effort (hours)", estimatedCost: "Estimated cost",
   kind: "Type", notes: "Notes",
 };
