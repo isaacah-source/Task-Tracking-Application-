@@ -63,7 +63,7 @@ loads sample departments, people, and projects. Nothing is saved.
   without one appears under their department's owner. Filter to one department.
 - **Deletion log.** Every deletion is recorded with who and when before anything is removed,
   in a SharePoint list only admins can read (see *Deletion log*).
-- **Workload.** A live card per person: open tasks, booked hours for the next 7 days and 4
+- **Workload** (admins only). A live card per person: open tasks, booked hours for the next 7 days and 4
   weeks against capacity, overdue and blocked counts, and upcoming deadlines.
 - **Relationships.** Link projects to external contacts and organizations from the
   Relationship Tracker, grouped as Government, Industry, and Research Partners, and Media.

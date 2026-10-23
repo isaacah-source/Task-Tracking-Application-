@@ -14,7 +14,7 @@ const NAV = [
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/tasks", label: "Task list", icon: ClipboardList },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
-  { to: "/people", label: "Workload", icon: Users },
+  { to: "/people", label: "Workload", icon: Users, adminOnly: true },
   { to: "/org", label: "Org chart", icon: Network },
   { to: "/meeting", label: "Meeting notes", icon: NotebookPen },
   { to: "/display", label: "Meeting display", icon: MonitorPlay },
@@ -24,7 +24,8 @@ const NAV = [
 
 export function Layout() {
   const { me, myName, myEmail, data, mode, signOut, switchUser, lastSync } = useStore();
-  const items = isAdmin(me) ? [...NAV, { to: "/admin", label: "Admin", icon: Settings }] : NAV;
+  // Workload and Admin are for admins only.
+  const items = isAdmin(me) ? [...NAV, { to: "/admin", label: "Admin", icon: Settings }] : NAV.filter((n) => !("adminOnly" in n));
 
   return (
     <div className="min-h-screen md:flex">
