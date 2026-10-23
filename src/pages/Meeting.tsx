@@ -6,14 +6,15 @@ import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
 import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domain/conflicts";
 import { canWrite, isAdmin } from "@/domain/permissions";
-import { addDays, formatDate, formatShort } from "@/domain/dates";
+import { formatDate, formatShort } from "@/domain/dates";
+import { recentWithNotes, upcomingTranscriptions } from "@/domain/meetings";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
 import { DepartmentSelect, DueFlag, Field, LineOfEffortSelect, PageHeader, PersonSelect, deptName, personName } from "@/components/common";
 import { blankProject } from "@/components/ProjectForm";
 import { meetingOrigin } from "@/data/repository";
 import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
-import { MeetingRow, byDateDesc } from "@/components/MeetingRow";
+import { MeetingRow } from "@/components/MeetingRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,38 +55,43 @@ export default function MeetingPage() {
 }
 
 /**
- * Today's meetings and the past three days', newest first, plus any upcoming notes already set
- * up (for example from the Teams calendar). Older notes are on the Past meetings page.
+ * Recent meetings with notes, and the person's upcoming meetings set up for Teams
+ * transcription. Everything older is on the Past meetings page.
  */
 function RecentMeetings({ meetings, onOpen }: { meetings: MeetingNote[]; onOpen: (id: ID) => void }) {
-  const { data, today } = useStore();
-  const since = addDays(today, -3);
-  const recent = meetings.filter((m) => m.date >= since && m.date <= today).sort(byDateDesc);
-  const upcoming = meetings.filter((m) => m.date > today).sort((x, y) => x.date.localeCompare(y.date) || Number(x.id) - Number(y.id));
-  const older = meetings.filter((m) => m.date < since).length;
+  const { data, me, today } = useStore();
+  const upcoming = upcomingTranscriptions(meetings, me?.id ?? null, today);
+  const recent = recentWithNotes(meetings, today);
+  const past = meetings.filter((m) => m.date <= today).length;
 
   return (
     <Card className="h-fit">
       <CardHeader>
         <CardTitle>Recent meetings</CardTitle>
-        <CardDescription>Today and the past three days, newest first.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4">
-        {recent.length === 0 ? <p className="text-sm text-muted-foreground">No meetings in the past three days.</p> : (
-          <ul className="divide-y rounded-md border">
-            {recent.map((m) => <MeetingRow key={m.id} meeting={m} data={data} onOpen={() => onOpen(m.id)} />)}
-          </ul>
-        )}
-        {upcoming.length > 0 && (
-          <section>
-            <h3 className="mb-1 text-sm font-semibold">Coming up</h3>
+      <CardContent className="grid gap-5">
+        <section>
+          <h3 className="mb-1 text-sm font-semibold">Meetings in the next 5 days you have selected transcription</h3>
+          {upcoming.length === 0 ? (
+            <p className="text-sm text-muted-foreground">None. Choose meetings under "Select Upcoming Meetings to Transcribe".</p>
+          ) : (
             <ul className="divide-y rounded-md border">
               {upcoming.map((m) => <MeetingRow key={m.id} meeting={m} data={data} onOpen={() => onOpen(m.id)} />)}
             </ul>
-          </section>
-        )}
+          )}
+        </section>
+        <section>
+          <h3 className="mb-1 text-sm font-semibold">Meetings in the last 5 days that have notes</h3>
+          {recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No meetings with notes or transcripts in the last 5 days.</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {recent.map((m) => <MeetingRow key={m.id} meeting={m} data={data} onOpen={() => onOpen(m.id)} />)}
+            </ul>
+          )}
+        </section>
         <Button variant="outline" className="w-fit" asChild>
-          <Link to="/meeting/past"><History />All past meetings{older ? ` (${older} older)` : ""}</Link>
+          <Link to="/meeting/past"><History />All past meetings ({past})</Link>
         </Button>
       </CardContent>
     </Card>

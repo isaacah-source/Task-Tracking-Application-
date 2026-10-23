@@ -70,7 +70,7 @@ export function TeamsCalendarCard({ onOpen }: { onOpen: (id: ID) => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>From your Teams calendar</CardTitle>
+        <CardTitle>Select Upcoming Meetings to Transcribe</CardTitle>
         <CardDescription>
           Choose upcoming Teams meetings to transcribe. Each gets a meeting note, and its transcript is saved there after the meeting.
         </CardDescription>
