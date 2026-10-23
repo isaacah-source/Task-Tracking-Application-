@@ -341,6 +341,20 @@ how many to keep with `-Keep`. To stop: `Unregister-ScheduledTask -TaskName "FSI
 The task runs while you are signed in to Windows. If the saved Microsoft sign-in has expired,
 a sign-in window appears and the backup continues once you sign in.
 
+## Phone app
+
+The app installs on a phone's home screen and opens full screen like any other app. There is
+nothing to download from an app store, and updates arrive on their own the next time it opens.
+
+**iPhone:** open the app link in Safari, tap Share, then Add to Home Screen.
+**Android:** open the app link in Chrome, tap the menu, then Install app (or Add to Home screen).
+
+Sign in once with your FSI Microsoft account. On a phone the menu moves to a bar along the
+bottom (My work, Projects, Tasks, Meetings); everything else sits under More. Tables show the
+key columns and fold the rest under each title.
+
+The app needs a connection to load or save data; it keeps no copy of SharePoint data on the phone.
+
 ## Development
 
 ```bash

@@ -79,12 +79,12 @@ export default function ProjectsPage() {
           <THead>
             <TR>
               <TH>Project</TH>
-              <TH>Line of effort</TH>
-              <TH>Department</TH>
-              <TH>Owner</TH>
-              <TH>Stage</TH>
+              <TH className="hidden md:table-cell">Line of effort</TH>
+              <TH className="hidden md:table-cell">Department</TH>
+              <TH className="hidden md:table-cell">Owner</TH>
+              <TH className="hidden md:table-cell">Stage</TH>
               <TH>Due</TH>
-              <TH>Budget</TH>
+              <TH className="hidden md:table-cell">Budget</TH>
               <TH>Status</TH>
             </TR>
           </THead>
@@ -94,7 +94,7 @@ export default function ProjectsPage() {
               const pct = p.plannedBudget > 0 ? Math.round((p.actualSpend / p.plannedBudget) * 100) : null;
               return (
                 <TR key={p.id}>
-                  <TD className="min-w-[12rem] max-w-xs">
+                  <TD className="max-w-xs md:min-w-[12rem]">
                     <Link to={`/projects/${p.id}`} className="font-medium hover:underline">{p.title}</Link>
                     <div className="whitespace-normal break-words text-xs text-muted-foreground">
                       {[
@@ -102,22 +102,25 @@ export default function ProjectsPage() {
                         nextMilestone(p.id, data.tasks) && `Next milestone: ${nextMilestone(p.id, data.tasks)!.title}`,
                       ].filter(Boolean).join(" · ")}
                     </div>
+                    <div className="whitespace-normal text-xs text-muted-foreground md:hidden">
+                      {[data.linesOfEffort.find((l) => l.id === p.lineOfEffortId)?.name, personName(data, p.ownerId), stage?.name].filter(Boolean).join(" · ")}
+                    </div>
                   </TD>
-                  <TD className="min-w-[9rem] max-w-[14rem] whitespace-normal">
+                  <TD className="hidden md:table-cell min-w-[9rem] max-w-[14rem] whitespace-normal">
                     {p.lineOfEffortId
                       ? <Link to={`/lines#loe-${p.lineOfEffortId}`} className="hover:underline">{data.linesOfEffort.find((l) => l.id === p.lineOfEffortId)?.name}</Link>
                       : <span className="font-medium text-amber-800">Needs one</span>}
                   </TD>
-                  <TD>{deptName(data, p.departmentId)}</TD>
-                  <TD>{personName(data, p.ownerId)}</TD>
-                  <TD className="text-muted-foreground">{stage?.name ?? ""}</TD>
+                  <TD className="hidden md:table-cell">{deptName(data, p.departmentId)}</TD>
+                  <TD className="hidden md:table-cell">{personName(data, p.ownerId)}</TD>
+                  <TD className="hidden text-muted-foreground md:table-cell">{stage?.name ?? ""}</TD>
                   <TD>
                     <div className="flex flex-col items-start gap-1 whitespace-nowrap">
                       <DateText date={p.dueDate} status={p.status} today={today} />
                       <DueFlag dueDate={p.dueDate} status={p.status} today={today} />
                     </div>
                   </TD>
-                  <TD>
+                  <TD className="hidden md:table-cell">
                     {pct === null ? <span className="text-muted-foreground">None</span> : (
                       <span className={pct > 100 ? "font-semibold text-red-700" : pct >= 90 ? "font-semibold text-amber-800" : ""}>
                         <span className="whitespace-nowrap">{money(p.actualSpend)}</span>{" "}
