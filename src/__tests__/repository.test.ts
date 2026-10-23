@@ -22,7 +22,7 @@ describe("projects", () => {
   it("creates a project with stages and logs it", async () => {
     const p = await repo.createProject(
       {
-        title: "  New paper ", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
+        title: "  New paper ", lineOfEffortId: "1", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
         operationalDetails: "", startDate: "2026-11-01", dueDate: "2026-12-01", status: "notStarted", plannedBudget: 0, actualSpend: 0,
       },
       [{ name: "Research", ownerId: "3", departmentId: "2" }, { name: "Comms rollout", ownerId: "2", departmentId: "1" }],
@@ -36,10 +36,10 @@ describe("projects", () => {
   it("requires a name, department, and owner", async () => {
     await expect(
       repo.createProject({
-        title: "", departmentId: "x", ownerId: "x", outputTypeIds: [], operationalDetails: "",
+        title: "", lineOfEffortId: null, departmentId: "x", ownerId: "x", outputTypeIds: [], operationalDetails: "",
         startDate: null, dueDate: null, status: "notStarted", plannedBudget: 0, actualSpend: 0,
       }),
-    ).rejects.toMatchObject({ problems: ["Give the project a name.", "Choose a department.", "Choose an owner."] });
+    ).rejects.toMatchObject({ problems: ["Give the project a name.", "Choose a line of effort.", "Choose a department.", "Choose an owner."] });
   });
 
   it("refuses a date change without a reason", async () => {
@@ -422,5 +422,34 @@ describe("meeting note visibility", () => {
     const { repo } = await repoAs("Dana Ortiz (sample)");
     await expect(repo.updateMeeting("3", { notes: "x" })).rejects.toBeInstanceOf(PermissionError);
     await expect(repo.saveTranscript("3", "x")).rejects.toBeInstanceOf(PermissionError);
+  });
+});
+
+describe("lines of effort", () => {
+  const input = { name: "AI incident reporting", departmentId: "2", description: "", ownerId: null, active: true };
+  it("lets admins, department owners, and the department's Task Lead add them, and nobody else", async () => {
+    expect((await (await repoAs("Ike Harris")).repo.saveLineOfEffort(input)).name).toBe("AI incident reporting");
+    expect((await (await repoAs("Aaron")).repo.saveLineOfEffort({ ...input, name: "B" })).departmentId).toBe("2"); // owns Research
+    expect((await (await repoAs("Priya Raman (sample)")).repo.saveLineOfEffort({ ...input, name: "C" })).departmentId).toBe("2"); // Research lead
+    await expect((await repoAs("Dana Ortiz (sample)")).repo.saveLineOfEffort({ ...input, name: "D" })).rejects.toBeInstanceOf(PermissionError);
+    await expect((await repoAs("Susan Malandrino")).repo.saveLineOfEffort({ ...input, name: "E" })).rejects.toBeInstanceOf(PermissionError);
+  });
+  it("needs a name that is not already taken", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await expect(repo.saveLineOfEffort({ ...input, name: " talent PIPELINE " })).rejects.toMatchObject({ problems: ["Another line of effort already has that name."] });
+  });
+  it("requires every new project to sit under one, and keeps edits from clearing it", async () => {
+    const { repo } = await repoAs("Aaron");
+    await expect(repo.updateProject("1", { lineOfEffortId: null })).rejects.toBeInstanceOf(RuleError);
+    await repo.updateProject("1", { lineOfEffortId: "2" });
+    expect(repo.project("1").lineOfEffortId).toBe("2");
+  });
+  it("refuses to delete one that projects use, and logs a deletion", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await expect(repo.deleteLineOfEffort("1")).rejects.toMatchObject({ problems: [expect.stringMatching(/3 projects are under/)] });
+    const l = await repo.saveLineOfEffort(input);
+    await repo.deleteLineOfEffort(l.id);
+    expect(repo.data.linesOfEffort.some((x) => x.id === l.id)).toBe(false);
+    expect((await repo.loadDeletions()).some((d) => d.entityType === "lineOfEffort")).toBe(true);
   });
 });

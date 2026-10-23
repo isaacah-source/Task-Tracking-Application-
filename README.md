@@ -10,6 +10,11 @@ loads sample departments, people, and projects. Nothing is saved.
 
 ## What it does
 
+- **Lines of effort** sit above projects: large, enduring bodies of work with no end date.
+  Each belongs to a department and can have a lead and a description. Every project sits
+  under one. Admins, a department's owner, and its Department Task Lead add and edit that
+  department's lines of effort; one that no project uses can be deleted, otherwise mark it
+  inactive. The **Lines of effort** page lists them by department with their projects.
 - **Projects** belong to one department (Comms, Research, Ops with its Resourcing
   sub-department, Leadership) and carry an owner, one or more output types, operational
   details, dates, a planned budget, and actual spend. Milestones live in the project's tasks;
@@ -97,6 +102,7 @@ should not rename the lists or their columns.
 | FSI Departments | Departments and sub-departments, with owners |
 | FSI People | Staff, role, department, weekly capacity |
 | FSI Output Types | The editable list of output types |
+| FSI Lines of Effort | Lines of effort, by department |
 | FSI Projects | Projects |
 | FSI Tasks | Tasks, events, and milestones |
 | FSI Task Dependencies | Which task waits on which |
@@ -146,6 +152,12 @@ Two things to know:
 **Upgrading a site set up before this version:** the first admin to open the app sees **Set up
 site** again. Clicking it adds the new list and the new People columns (Reports to, lead
 departments). Nothing existing is changed.
+
+**Adding Lines of Effort to a site set up earlier:** the new FSI Lines of Effort list makes the
+app show **Set up site** to the first admin who opens it; until then other people see a
+message to wait for an admin. Setup adds the list and the projects' Line Of Effort column and
+changes nothing else. Then add the lines of effort and choose one on each project (the
+Lines of effort page links to the projects that still need one).
 
 **New columns on existing lists** (for example the Teams columns on FSI Meeting Notes, or the
 handoff date and milestone on FSI Project Stages): an admin

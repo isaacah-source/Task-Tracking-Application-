@@ -3,13 +3,13 @@ import type { Project, Status } from "@/domain/types";
 import { STATUS_LABELS } from "@/domain/types";
 import type { ProjectInput } from "@/data/repository";
 import { useStore } from "@/data/store";
-import { DepartmentSelect, Field, PersonSelect } from "./common";
+import { DepartmentSelect, Field, LineOfEffortSelect, PersonSelect } from "./common";
 import { Input, Select, Textarea } from "./ui/input";
 import { Button } from "./ui/button";
 
 export function blankProject(ownerId: string | null, departmentId: string | null): ProjectInput {
   return {
-    title: "", departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [],
+    title: "", lineOfEffortId: null, departmentId: departmentId ?? "", ownerId: ownerId ?? "", outputTypeIds: [],
     operationalDetails: "", startDate: null, dueDate: null, status: "notStarted", plannedBudget: 0, actualSpend: 0,
   };
 }
@@ -37,6 +37,18 @@ export function ProjectForm({ initial, onSubmit, submitLabel, onCancel, disabled
     >
       <Field label="Project name">
         <Input value={v.title} onChange={(e) => set("title", e.target.value)} disabled={disabled} required autoFocus={!v.title} />
+      </Field>
+      <Field label="Line of effort" hint={!v.lineOfEffortId ? "Every project sits under a line of effort." : undefined}>
+        <LineOfEffortSelect
+          data={data}
+          value={v.lineOfEffortId}
+          onChange={(id) => {
+            set("lineOfEffortId", id);
+            const l = data.linesOfEffort.find((x) => x.id === id);
+            if (l && !v.departmentId) set("departmentId", l.departmentId);
+          }}
+          disabled={disabled}
+        />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Department">

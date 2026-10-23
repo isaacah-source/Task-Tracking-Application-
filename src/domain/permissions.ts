@@ -55,6 +55,16 @@ export function canSeeMeeting(me: Person | null, m: MeetingNote, departments: De
   return ownedDepartmentIds(me, departments).has(m.departmentId) || leadDepartmentScope(me, departments).has(m.departmentId);
 }
 
+/**
+ * Lines of effort in a department: admins, that department's owner (or an owner above it), and
+ * its Department Task Leads may add and change them.
+ */
+export function canManageLinesOfEffort(me: Person | null, departmentId: ID, departments: Department[]): boolean {
+  if (!canWrite(me)) return false;
+  if (isAdmin(me)) return true;
+  return ownedDepartmentIds(me!, departments).has(departmentId) || leadDepartmentScope(me, departments).has(departmentId);
+}
+
 /** Departments this person owns, including sub-departments under them. */
 export function ownedDepartmentIds(me: Person, departments: Department[]): Set<ID> {
   return trees(departments.filter((d) => d.ownerId === me.id).map((d) => d.id), departments);

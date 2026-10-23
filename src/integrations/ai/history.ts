@@ -23,6 +23,7 @@ export interface DateSlip {
 export interface ProjectHistory {
   id: ID;
   title: string;
+  lineOfEffort: string;
   department: string;
   owner: string;
   outputTypes: string[];
@@ -85,6 +86,7 @@ export function buildHistory(data: DataSet, today: string): History {
     return {
       id: p.id,
       title: p.title,
+      lineOfEffort: data.linesOfEffort.find((l) => l.id === p.lineOfEffortId)?.name ?? "",
       department: dept(p.departmentId),
       owner: name(p.ownerId),
       outputTypes: p.outputTypeIds.map(otName),

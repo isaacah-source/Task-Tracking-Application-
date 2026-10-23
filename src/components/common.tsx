@@ -74,6 +74,26 @@ export function handoffMessage(done: Stage[], data: Pick<DataSet, "people" | "st
   return `${names} complete; ${next ? `handed to ${personName(data, next.ownerId)} for ${next.name}` : "project done"}.`;
 }
 
+/** Lines of effort grouped by department. Inactive ones show only when already chosen. */
+export function LineOfEffortSelect({ data, value, onChange, disabled, emptyLabel = "Choose a line of effort", allowEmpty = true }: {
+  data: Pick<DataSet, "departments" | "linesOfEffort">; value: ID | null; onChange: (id: ID | null) => void; disabled?: boolean;
+  emptyLabel?: string; allowEmpty?: boolean;
+}) {
+  const groups = departmentOptions(data.departments)
+    .map((d) => ({ dept: d, lines: data.linesOfEffort.filter((l) => l.departmentId === d.id && (l.active || l.id === value)).sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.lines.length);
+  return (
+    <Select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} disabled={disabled} required={!allowEmpty}>
+      {(allowEmpty || !value) && <option value="">{emptyLabel}</option>}
+      {groups.map((g) => (
+        <optgroup key={g.dept.id} label={g.dept.label}>
+          {g.lines.map((l) => <option key={l.id} value={l.id}>{l.name}{l.active ? "" : " (inactive)"}</option>)}
+        </optgroup>
+      ))}
+    </Select>
+  );
+}
+
 export function personName(data: Pick<DataSet, "people">, id: ID | null | undefined): string {
   if (!id) return "Unassigned";
   return data.people.find((p) => p.id === id)?.name ?? "Unknown";
