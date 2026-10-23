@@ -256,7 +256,7 @@ export interface MeetingNote {
  */
 export interface DeletionEntry {
   id: ID;
-  entityType: "project" | "task" | "dependency" | "membership" | "projectLink" | "stage" | "relationshipLink" | "department" | "outputType" | "lineOfEffort";
+  entityType: "project" | "task" | "dependency" | "membership" | "projectLink" | "stage" | "relationshipLink" | "department" | "outputType" | "lineOfEffort" | "meeting";
   entityId: ID;
   /** What was deleted, in words. */
   summary: string;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Captions, Plus, UserCheck } from "lucide-react";
+import { Captions, Plus, Trash2, UserCheck } from "lucide-react";
 import { useStore } from "@/data/store";
 import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
@@ -164,7 +164,7 @@ function NewMeeting({ onCreated }: { onCreated: (id: ID) => void }) {
 }
 
 function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLeave: () => void; canEdit: boolean }) {
-  const { data, today, run, repo, toast } = useStore();
+  const { data, me, today, run, repo, toast } = useStore();
   const [notes, setNotes] = useState(meeting.notes);
   const [saved, setSaved] = useState(true);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -222,6 +222,18 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
             <TeamsTranscribeButton title={meeting.title} note={meeting} />
             {(meeting.meetingType !== "other") && <Button variant="outline" asChild><Link to="/tasks">Open task list</Link></Button>}
             <Button variant="outline" onClick={onLeave}>All meetings</Button>
+            {isAdmin(me) && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const msg = `Delete the meeting note "${meeting.title}" (${formatDate(meeting.date)})? Its notes${meeting.transcript ? " and saved transcript" : ""} are removed from the app; tasks assigned in it stay. ${meeting.teamsMeetingId ? "The Teams meeting and its recording stay in Teams. " : ""}The deletion is recorded in the admin deletion log.`;
+                  if (!confirm(msg)) return;
+                  if (await run(() => repo.deleteMeeting(meeting.id).then(() => true), "Meeting note deleted")) onLeave();
+                }}
+              >
+                <Trash2 />Delete
+              </Button>
+            )}
           </>
         }
       />
