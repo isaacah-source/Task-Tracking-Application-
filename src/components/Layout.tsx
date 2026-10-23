@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  CalendarDays, Layers, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
+  CalendarDays, History, Layers, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
 } from "lucide-react";
 import { useStore } from "@/data/store";
 import { isAdmin } from "@/domain/permissions";
@@ -16,7 +16,8 @@ const NAV = [
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/people", label: "Workload", icon: Users, adminOnly: true },
   { to: "/org", label: "Org chart", icon: Network },
-  { to: "/meeting", label: "Meeting notes", icon: NotebookPen },
+  { to: "/meeting", label: "Meeting notes", icon: NotebookPen, end: true },
+  { to: "/meeting/past", label: "Past meetings", icon: History, sub: true },
   { to: "/display", label: "Meeting display", icon: MonitorPlay },
   { to: "/plan", label: "Planning", icon: Sparkles },
   { to: "/ask", label: "Ask about the data", icon: MessageSquareText },
@@ -46,11 +47,12 @@ export function Layout() {
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  "sub" in n && "py-1.5 pl-9 text-xs",
                   isActive && "bg-accent text-accent-foreground",
                 )
               }
             >
-              <n.icon className="h-4 w-4" />
+              <n.icon className={"sub" in n ? "h-3.5 w-3.5" : "h-4 w-4"} />
               {n.label}
             </NavLink>
           ))}

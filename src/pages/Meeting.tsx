@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Captions, Plus, Trash2, UserCheck } from "lucide-react";
+import { History, Plus, Trash2, UserCheck } from "lucide-react";
 import { useStore } from "@/data/store";
 import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
 import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domain/conflicts";
-import { canWrite, departmentTree, isAdmin } from "@/domain/permissions";
-import { formatDate, formatShort } from "@/domain/dates";
+import { canWrite, isAdmin } from "@/domain/permissions";
+import { addDays, formatDate, formatShort } from "@/domain/dates";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
-import { DepartmentSelect, DueFlag, Empty, Field, LineOfEffortSelect, PageHeader, PersonSelect, departmentOptions, deptName, personName } from "@/components/common";
+import { DepartmentSelect, DueFlag, Field, LineOfEffortSelect, PageHeader, PersonSelect, deptName, personName } from "@/components/common";
 import { blankProject } from "@/components/ProjectForm";
 import { meetingOrigin } from "@/data/repository";
 import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
+import { MeetingRow, byDateDesc } from "@/components/MeetingRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export default function MeetingPage() {
             {canWrite(me) && <NewMeeting onCreated={setCurrentId} />}
             {canWrite(me) && <TeamsCalendarCard onOpen={setCurrentId} />}
           </div>
-          <MeetingsByDepartment meetings={visible} onOpen={setCurrentId} />
+          <RecentMeetings meetings={visible} onOpen={setCurrentId} />
         </div>
       </>
     );
@@ -52,56 +53,40 @@ export default function MeetingPage() {
   return <MeetingRoom key={current.id} meeting={current} onLeave={() => setCurrentId(null)} canEdit={canWrite(me)} />;
 }
 
-/** Notes grouped by department, newest first in each; "No department" last. */
-function MeetingsByDepartment({ meetings, onOpen }: { meetings: MeetingNote[]; onOpen: (id: ID) => void }) {
-  const { data, me } = useStore();
-  const [dept, setDept] = useState<ID | null>(null);
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const scope = dept ? departmentTree(dept, data.departments) : null;
-  const shown = meetings.filter((m) => !scope || (m.departmentId && scope.has(m.departmentId)));
-  // Department order follows the department list (parents before their sub-departments).
-  const order = departmentOptions(data.departments).map((o) => o.id);
-  const groups = [...new Set(shown.map((m) => m.departmentId ?? ""))]
-    .sort((a, b) => (a === "" ? 1 : b === "" ? -1 : order.indexOf(a) - order.indexOf(b)))
-    .map((key) => ({
-      key,
-      label: key ? deptName(data, key) : "No department",
-      notes: shown.filter((m) => (m.departmentId ?? "") === key).sort((x, y) => y.date.localeCompare(x.date) || Number(y.id) - Number(x.id)),
-    }));
-  const LIMIT = 6;
+/**
+ * Today's meetings and the past three days', newest first, plus any upcoming notes already set
+ * up (for example from the Teams calendar). Older notes are on the Past meetings page.
+ */
+function RecentMeetings({ meetings, onOpen }: { meetings: MeetingNote[]; onOpen: (id: ID) => void }) {
+  const { data, today } = useStore();
+  const since = addDays(today, -3);
+  const recent = meetings.filter((m) => m.date >= since && m.date <= today).sort(byDateDesc);
+  const upcoming = meetings.filter((m) => m.date > today).sort((x, y) => x.date.localeCompare(y.date) || Number(x.id) - Number(y.id));
+  const older = meetings.filter((m) => m.date < since).length;
 
   return (
     <Card className="h-fit">
       <CardHeader>
-        <CardTitle>Meeting notes by department</CardTitle>
-        <CardDescription>
-          {isAdmin(me) ? "As an admin you see every department's notes." : "You see your department's notes and notes from meetings you were in."}
-        </CardDescription>
+        <CardTitle>Recent meetings</CardTitle>
+        <CardDescription>Today and the past three days, newest first.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <DepartmentSelect departments={data.departments} value={dept} onChange={setDept} allowEmpty emptyLabel="All departments" />
-        {groups.length === 0 ? <Empty>No meetings yet.</Empty> : groups.map((g) => (
-          <section key={g.key}>
-            <h3 className="mb-1 flex items-baseline justify-between text-sm font-semibold">
-              {g.label}<span className="text-xs font-normal text-muted-foreground">{g.notes.length} meeting{g.notes.length === 1 ? "" : "s"}</span>
-            </h3>
+        {recent.length === 0 ? <p className="text-sm text-muted-foreground">No meetings in the past three days.</p> : (
+          <ul className="divide-y rounded-md border">
+            {recent.map((m) => <MeetingRow key={m.id} meeting={m} data={data} onOpen={() => onOpen(m.id)} />)}
+          </ul>
+        )}
+        {upcoming.length > 0 && (
+          <section>
+            <h3 className="mb-1 text-sm font-semibold">Coming up</h3>
             <ul className="divide-y rounded-md border">
-              {(open[g.key] ? g.notes : g.notes.slice(0, LIMIT)).map((m) => (
-                <li key={m.id}>
-                  <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-accent/50" onClick={() => onOpen(m.id)}>
-                    <span className="font-medium">{m.title}{m.teamsMeetingId && <Captions className="ml-1.5 inline h-3.5 w-3.5 text-muted-foreground" aria-label="Teams transcription" />}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{MEETING_TYPE_LABELS[m.meetingType]} · {formatDate(m.date)}</span>
-                  </button>
-                </li>
-              ))}
+              {upcoming.map((m) => <MeetingRow key={m.id} meeting={m} data={data} onOpen={() => onOpen(m.id)} />)}
             </ul>
-            {g.notes.length > LIMIT && (
-              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setOpen((o) => ({ ...o, [g.key]: !o[g.key] }))}>
-                {open[g.key] ? "Show fewer" : `Show all ${g.notes.length}`}
-              </Button>
-            )}
           </section>
-        ))}
+        )}
+        <Button variant="outline" className="w-fit" asChild>
+          <Link to="/meeting/past"><History />All past meetings{older ? ` (${older} older)` : ""}</Link>
+        </Button>
       </CardContent>
     </Card>
   );
