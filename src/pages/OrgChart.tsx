@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "@/data/store";
 import type { ID, Person } from "@/domain/types";
-import { departmentTree, effectiveManagers } from "@/domain/permissions";
+import { departmentTree, effectiveManagers, isAdmin } from "@/domain/permissions";
 import { DepartmentSelect, Empty, PageHeader, deptName } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 
@@ -76,7 +76,7 @@ function Node({ person, kids }: { person: Person; kids: Map<ID, Person[]> }) {
 const TITLE = "max-w-full whitespace-normal break-words text-left leading-snug";
 
 function PersonCard({ person }: { person: Person }) {
-  const { data } = useStore();
+  const { data, me } = useStore();
   const owns = data.departments.filter((d) => d.ownerId === person.id);
   const leads = person.role === "deptLead" ? person.leadDepartmentIds.map((id) => data.departments.find((d) => d.id === id)?.name).filter(Boolean) : [];
   const open = data.tasks.filter((t) => t.ownerId === person.id && t.status !== "done").length;
@@ -89,7 +89,11 @@ function PersonCard({ person }: { person: Person }) {
         {owns.map((d) => <Badge key={d.id} variant="info" className={TITLE}>Owner: {d.name}</Badge>)}
         {leads.length > 0 && <Badge variant="info" className={TITLE}>Task Lead: {leads.join(", ")}</Badge>}
       </div>
-      <Link to="/people" className="mt-2 block text-xs text-muted-foreground hover:underline">{open} open task{open === 1 ? "" : "s"}</Link>
+      {isAdmin(me) ? (
+        <Link to="/people" className="mt-2 block text-xs text-muted-foreground hover:underline">{open} open task{open === 1 ? "" : "s"}</Link>
+      ) : (
+        <div className="mt-2 text-xs text-muted-foreground">{open} open task{open === 1 ? "" : "s"}</div>
+      )}
     </div>
   );
 }

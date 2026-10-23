@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "@/data/store";
-import { departmentTree } from "@/domain/permissions";
+import { departmentTree, isAdmin } from "@/domain/permissions";
 import { personLoad, type LoadLevel, type PersonLoad } from "@/domain/load";
 import { formatShort } from "@/domain/dates";
-import { DepartmentSelect, PageHeader, deptName } from "@/components/common";
+import { DepartmentSelect, Empty, PageHeader, deptName } from "@/components/common";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -16,8 +16,14 @@ const LEVEL: Record<LoadLevel, { label: string; bar: string; badge: "success" | 
   over: { label: "Over capacity", bar: "bg-red-600", badge: "danger" },
 };
 
-/** Live workload per person: open tasks, booked hours against capacity, and deadlines. */
+/** Live workload per person: open tasks, booked hours against capacity, and deadlines. Admins only. */
 export default function PeoplePage() {
+  const { me } = useStore();
+  if (!isAdmin(me)) return <Empty>Only admins can open the workload view.</Empty>;
+  return <Workload />;
+}
+
+function Workload() {
   const { data, today } = useStore();
   const [dept, setDept] = useState<string | null>(null);
 
