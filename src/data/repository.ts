@@ -47,6 +47,11 @@ export const fieldLabel = (f: string) => FIELD_LABELS[f] ?? f;
 export type ProjectInput = Omit<Project, "id" | "createdAt" | "createdById">;
 type TeamsField = "teamsMeetingId" | "teamsJoinUrl" | "transcript";
 
+/** History note for a project started from a meeting note; also how the note finds it again. */
+export function meetingOrigin(m: Pick<MeetingNote, "id" | "title" | "date">): string {
+  return `Created in meeting "${m.title}" on ${m.date} (meeting #${m.id})`;
+}
+
 export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId"> & { sourceMeetingId?: ID | null };
 export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & Partial<Pick<Stage, "handoffNote" | "handoffDate" | "handoffTaskId">>;
 
@@ -193,7 +198,8 @@ export class Repository {
 
   // ---- Projects ----
 
-  async createProject(input: ProjectInput, stages: StageInput[] = []): Promise<Project> {
+  /** `origin` is saved as the reason on the "created" history entry (see meetingOrigin). */
+  async createProject(input: ProjectInput, stages: StageInput[] = [], origin = ""): Promise<Project> {
     this.requireWrite();
     const problems: string[] = [];
     if (!input.title.trim()) problems.push("Give the project a name.");
@@ -205,7 +211,7 @@ export class Repository {
     const project = await this.create("projects", {
       ...input, title: input.title.trim(), createdAt: this.nowIso(), createdById: this.me?.id ?? null,
     });
-    await this.log("project", project.id, project.id, "created", "", project.title);
+    await this.log("project", project.id, project.id, "created", "", project.title, origin);
     for (const s of stages) await this.addStage(project.id, s);
     return project;
   }
