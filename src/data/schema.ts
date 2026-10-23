@@ -58,6 +58,14 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     titleField: "name",
     columns: { active: "bool", sortOrder: "number" },
   }),
+  linesOfEffort: def({
+    table: "linesOfEffort",
+    listName: "FSI Lines of Effort",
+    description: "Enduring lines of effort. Each belongs to a department and groups projects.",
+    title: (r) => r.name,
+    titleField: "name",
+    columns: { departmentId: "ref", description: "note", ownerId: "ref", active: "bool" },
+  }),
   projects: def({
     table: "projects",
     listName: "FSI Projects",
@@ -65,7 +73,7 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     title: (r) => r.title,
     titleField: "title",
     columns: {
-      departmentId: "ref", ownerId: "ref", outputTypeIds: "json",
+      lineOfEffortId: "ref", departmentId: "ref", ownerId: "ref", outputTypeIds: "json",
       operationalDetails: "note", startDate: "date", dueDate: "date", status: "text", plannedBudget: "number",
       actualSpend: "number", createdAt: "text", createdById: "ref",
     },

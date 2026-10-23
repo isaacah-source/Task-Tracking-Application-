@@ -4,12 +4,12 @@
 // It keeps a write-through copy of the data so rules always check the latest state.
 
 import type {
-  AuditEntry, DeletionEntry, DataSet, Department, ID, MeetingNote, Membership, MembershipStatus, OutputType, Person,
+  AuditEntry, DeletionEntry, DataSet, Department, ID, LineOfEffort, MeetingNote, Membership, MembershipStatus, OutputType, Person,
   Project, RelationshipLink, Row, Stage, TableName, Task,
 } from "@/domain/types";
 import { emptyDataSet, STATUS_LABELS } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
-import { canDeleteInDepartment, canEditProject, canSeeMeeting, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
+import { canDeleteInDepartment, canEditProject, canManageLinesOfEffort, canSeeMeeting, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
 import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
 import { completeStage, stagesTriggeredBy, stagesFor } from "@/domain/transitions";
 import { isIsoDate } from "@/domain/dates";
@@ -197,6 +197,7 @@ export class Repository {
     this.requireWrite();
     const problems: string[] = [];
     if (!input.title.trim()) problems.push("Give the project a name.");
+    if (!this.data.linesOfEffort.some((l) => l.id === input.lineOfEffortId)) problems.push("Choose a line of effort.");
     if (!this.data.departments.some((d) => d.id === input.departmentId)) problems.push("Choose a department.");
     if (!this.data.people.some((p) => p.id === input.ownerId)) problems.push("Choose an owner.");
     if (problems.length) throw new RuleError(problems);
@@ -221,6 +222,9 @@ export class Repository {
     const dateKeys = keys.filter((k) => DATE_FIELDS.has(k));
     if (dateKeys.length && !reason.trim()) throw new ReasonRequiredError(dateKeys);
     if ("title" in patch && !patch.title?.trim()) throw new RuleError(["The project needs a name."]);
+    if ("lineOfEffortId" in patch && !this.data.linesOfEffort.some((l) => l.id === patch.lineOfEffortId)) {
+      throw new RuleError(["Choose a line of effort for this project."]);
+    }
     this.checkDates({ ...before, ...patch });
     const changes = Object.fromEntries(keys.map((k) => [k, patch[k]])) as Partial<Project>;
     await this.update("projects", id, changes);
@@ -615,6 +619,58 @@ export class Repository {
     if (!d) return;
     await this.logDeletion("department", id, `Department "${d.name}"`, null, id, d);
     await this.remove("departments", id);
+  }
+
+  // ---- Lines of effort ----
+
+  canManageLineOfEffort(departmentId: ID): boolean {
+    return canManageLinesOfEffort(this.me, departmentId, this.data.departments);
+  }
+
+  canDeleteLineOfEffort(l: LineOfEffort): boolean {
+    return canDeleteInDepartment(this.me, l.departmentId, this.data.departments);
+  }
+
+  async saveLineOfEffort(input: Omit<LineOfEffort, "id">, id?: ID): Promise<LineOfEffort> {
+    const before = id ? this.data.linesOfEffort.find((l) => l.id === id) : undefined;
+    if (id && !before) throw new RuleError(["That line of effort no longer exists."]);
+    // Moving one to another department needs rights in both.
+    for (const d of new Set([input.departmentId, before?.departmentId].filter(Boolean) as ID[])) {
+      if (!this.canManageLineOfEffort(d)) {
+        throw new PermissionError("Only admins, the department's owner, or its Department Task Lead can change its lines of effort.");
+      }
+    }
+    const problems: string[] = [];
+    const name = input.name.trim();
+    if (!name) problems.push("Name the line of effort.");
+    if (!this.data.departments.some((d) => d.id === input.departmentId)) problems.push("Choose a department.");
+    if (this.data.linesOfEffort.some((l) => l.id !== id && l.name.trim().toLowerCase() === name.toLowerCase())) problems.push("Another line of effort already has that name.");
+    if (problems.length) throw new RuleError(problems);
+    const clean = { ...input, name, description: input.description.trim() };
+    if (before) {
+      const keys = changedKeys(before, clean) as (keyof typeof clean)[];
+      if (keys.length) {
+        await this.update("linesOfEffort", before.id, Object.fromEntries(keys.map((k) => [k, clean[k]])));
+        for (const k of keys) await this.log("lineOfEffort", before.id, null, k, before[k], clean[k]);
+      }
+      return { ...before, ...clean };
+    }
+    const l = await this.create("linesOfEffort", clean);
+    await this.log("lineOfEffort", l.id, null, "created", "", l.name);
+    return l;
+  }
+
+  /** Deletes a line of effort that no project uses. Otherwise mark it inactive. */
+  async deleteLineOfEffort(id: ID): Promise<void> {
+    const l = this.data.linesOfEffort.find((x) => x.id === id);
+    if (!l) return;
+    if (!this.canDeleteLineOfEffort(l)) {
+      throw new PermissionError("Only admins and the department's Department Task Lead can delete.");
+    }
+    const n = this.data.projects.filter((p) => p.lineOfEffortId === id).length;
+    if (n) throw new RuleError([`${n} project${n === 1 ? " is" : "s are"} under this line of effort. Move ${n === 1 ? "it" : "them"} first, or mark the line of effort inactive.`]);
+    await this.logDeletion("lineOfEffort", id, `Line of effort "${l.name}"`, null, l.departmentId, l);
+    await this.remove("linesOfEffort", id);
   }
 
   async saveOutputType(input: Omit<OutputType, "id">, id?: ID): Promise<void> {

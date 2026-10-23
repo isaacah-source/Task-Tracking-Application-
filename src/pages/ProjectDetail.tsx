@@ -53,6 +53,10 @@ export default function ProjectDetailPage() {
         title={project.title}
         description={
           <span className="flex flex-wrap items-center gap-2">
+            {project.lineOfEffortId
+              ? <Link to={`/lines#loe-${project.lineOfEffortId}`} className="font-medium hover:underline">{data.linesOfEffort.find((l) => l.id === project.lineOfEffortId)?.name}</Link>
+              : <Badge variant="warning">Needs a line of effort</Badge>}
+            <span>·</span>
             {deptName(data, project.departmentId)} · Owner: {personName(data, project.ownerId)}
             <StatusBadge status={project.status} />
             <DueFlag dueDate={project.dueDate} status={project.status} today={today} />

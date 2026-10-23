@@ -75,6 +75,13 @@ describe("meeting display", () => {
     ]);
   });
 
+  it("groups by line of effort", () => {
+    const r = buildDisplay(data, opts({ status: "all", groupBy: "lineOfEffort" }), TODAY);
+    expect(r.groups.map((g) => g.label)).toContain("U.S.-China AI competition");
+    const g = r.groups.find((x) => x.label === "U.S.-China AI competition")!;
+    expect(new Set(g.tasks.map((t) => t.projectId))).toEqual(new Set(["1", "2", "7"]));
+  });
+
   it("round-trips choices through the page address", () => {
     const o = opts({ title: "Research weekly", scope: "people", personIds: ["3", "5"], kinds: ["task", "event"], showGantt: false, window: "custom", from: "2026-11-01", to: "2026-11-30" });
     expect(optionsFromQuery(optionsToQuery(o))).toEqual(o);

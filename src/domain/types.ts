@@ -89,9 +89,25 @@ export interface OutputType {
   sortOrder: number;
 }
 
+/**
+ * A line of effort: a large, enduring body of work that groups projects. Belongs to one
+ * department and has no end date; retire one by marking it inactive.
+ */
+export interface LineOfEffort {
+  id: ID;
+  name: string;
+  departmentId: ID;
+  description: string;
+  /** Person who leads it, if any. */
+  ownerId: ID | null;
+  active: boolean;
+}
+
 export interface Project {
   id: ID;
   title: string;
+  /** Every project sits under a line of effort. Null only for projects made before they existed. */
+  lineOfEffortId: ID | null;
   departmentId: ID;
   ownerId: ID;
   outputTypeIds: ID[];
@@ -204,7 +220,7 @@ export interface BudgetChange {
  */
 export interface AuditEntry {
   id: ID;
-  entityType: "project" | "task" | "stage" | "department" | "person" | "outputType" | "dependency" | "membership";
+  entityType: "project" | "task" | "stage" | "department" | "person" | "outputType" | "dependency" | "membership" | "lineOfEffort";
   entityId: ID;
   /** Project the change belongs to, for per-project history. */
   projectId: ID | null;
@@ -240,7 +256,7 @@ export interface MeetingNote {
  */
 export interface DeletionEntry {
   id: ID;
-  entityType: "project" | "task" | "dependency" | "membership" | "projectLink" | "stage" | "relationshipLink" | "department" | "outputType";
+  entityType: "project" | "task" | "dependency" | "membership" | "projectLink" | "stage" | "relationshipLink" | "department" | "outputType" | "lineOfEffort";
   entityId: ID;
   /** What was deleted, in words. */
   summary: string;
@@ -258,6 +274,7 @@ export interface DataSet {
   departments: Department[];
   people: Person[];
   outputTypes: OutputType[];
+  linesOfEffort: LineOfEffort[];
   projects: Project[];
   tasks: Task[];
   dependencies: Dependency[];
@@ -277,7 +294,7 @@ export type Row<K extends TableName> = DataSet[K][number];
 
 export function emptyDataSet(): DataSet {
   return {
-    departments: [], people: [], outputTypes: [], projects: [], tasks: [], dependencies: [],
+    departments: [], people: [], outputTypes: [], linesOfEffort: [], projects: [], tasks: [], dependencies: [],
     memberships: [], projectLinks: [], stages: [], relationshipLinks: [], budgetChanges: [],
     audit: [], meetings: [], deletions: [],
   };

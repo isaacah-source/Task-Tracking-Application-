@@ -30,8 +30,13 @@ export class GraphTeamsTranscription implements TeamsTranscription {
         await new Promise((r) => setTimeout(r, (Number(res.headers.get("Retry-After")) || 2 ** attempt) * 1000));
         continue;
       }
-      const err = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+      const err = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string; innerError?: { code?: string } } };
       const code = err.error?.code ?? "";
+      // The tenant-wide Teams switch is off: no sign-in or app change can get past it.
+      if (err.error?.innerError?.code === "GraphAccessToTranscriptsDisabled" || /transcripts is disabled for this tenant/i.test(err.error?.message ?? "")) {
+        throw new GraphError(res.status, "GraphAccessToTranscriptsDisabled",
+          "FSI's Teams settings block apps from reading transcripts. A Teams admin needs to open the Teams admin center, go to Meetings, then Meeting settings, and turn on Transcript API access (Microsoft Graph access), plus Include speaker attribution. The change can take a while to reach Teams; try again later. The transcript itself is safe in Teams.");
+      }
       // Teams' own words, so the cause can be told apart from the usual ones listed here.
       const said = err.error?.message ? ` Teams said: "${err.error.message}"${code ? ` (${code})` : ""}.` : code ? ` Teams said: ${code}.` : "";
       if (res.status === 401 || res.status === 403 || code === "accessDenied") {

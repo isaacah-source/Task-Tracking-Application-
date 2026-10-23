@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import HomePage from "@/pages/Home";
 import ProjectsPage from "@/pages/Projects";
+import LinesOfEffortPage from "@/pages/LinesOfEffort";
 import ProjectDetailPage from "@/pages/ProjectDetail";
 import TasksPage from "@/pages/Tasks";
 import CalendarPage from "@/pages/Calendar";
@@ -152,6 +153,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
+          <Route path="lines" element={<LinesOfEffortPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:id" element={<ProjectDetailPage />} />
           <Route path="tasks" element={<TasksPage />} />

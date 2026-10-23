@@ -42,49 +42,62 @@ export function buildSeed(today: string): DataSet {
 
   data.outputTypes = STANDARD_OUTPUT_TYPES.map((name, i) => ({ id: String(i + 1), name, active: true, sortOrder: i + 1 }));
 
+  data.linesOfEffort = [
+    { id: "1", name: "U.S.-China AI competition", departmentId: "2", ownerId: "3", active: true,
+      description: "Research and outreach on strategic competition in frontier AI between the U.S. and China." },
+    { id: "2", name: "Frontier AI crisis management", departmentId: "2", ownerId: "5", active: true,
+      description: "How governments prepare for and respond to AI security crises." },
+    { id: "3", name: "Congressional engagement", departmentId: "4", ownerId: "1", active: true,
+      description: "Briefings and relationships with congressional staff on AI security." },
+    { id: "4", name: "Supporter development", departmentId: "3", ownerId: "4", active: true,
+      description: "Convenings and events that build FSI's community of supporters." },
+    { id: "5", name: "Talent pipeline", departmentId: "5", ownerId: "4", active: true,
+      description: "Recruiting and developing fellows and staff." },
+  ];
+
   const project = (p: Partial<Project> & Pick<Project, "id" | "title" | "departmentId" | "ownerId">): Project => ({
-    outputTypeIds: [], operationalDetails: "", startDate: null, dueDate: null,
+    lineOfEffortId: null, outputTypeIds: [], operationalDetails: "", startDate: null, dueDate: null,
     status: "inProgress", plannedBudget: 0, actualSpend: 0, createdAt: ts(-60), createdById: "1", ...p,
   });
 
   data.projects = [
     project({
-      id: "1", title: "U.S.-China Strategic AI: Paper 1", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
+      id: "1", lineOfEffortId: "1", title: "U.S.-China Strategic AI: Paper 1", departmentId: "2", ownerId: "3", outputTypeIds: ["1"],
       startDate: d(-45), dueDate: d(30),
       operationalDetails: "Three authors. External review by two research partners before release. Comms takes over for rollout when research completes.",
       plannedBudget: 12000, actualSpend: 4800,
     }),
     project({
-      id: "2", title: "Paper 1 launch op-ed", departmentId: "1", ownerId: "2", outputTypeIds: ["2"],
+      id: "2", lineOfEffortId: "1", title: "Paper 1 launch op-ed", departmentId: "1", ownerId: "2", outputTypeIds: ["2"],
       startDate: d(31), dueDate: d(45), status: "notStarted",
       operationalDetails: "Pitch to three outlets in order. Coordinate timing with the paper release.", plannedBudget: 0,
     }),
     project({
-      id: "3", title: "Frontier AI crisis wargame", departmentId: "2", ownerId: "5", outputTypeIds: ["4"],
+      id: "3", lineOfEffortId: "2", title: "Frontier AI crisis wargame", departmentId: "2", ownerId: "5", outputTypeIds: ["4"],
       startDate: d(-20), dueDate: d(75),
       operationalDetails: "Twelve players, two cells. Venue in D.C. Needs facilitator contracts.", plannedBudget: 30000, actualSpend: 9500,
     }),
     project({
-      id: "4", title: "Congressional staff AI security briefing series", departmentId: "4", ownerId: "1", outputTypeIds: ["5"],
+      id: "4", lineOfEffortId: "3", title: "Congressional staff AI security briefing series", departmentId: "4", ownerId: "1", outputTypeIds: ["5"],
       startDate: d(-30), dueDate: d(60),
       operationalDetails: "Monthly briefings for committee staff. Rotate topics across the research agenda.", plannedBudget: 6000, actualSpend: 2100,
     }),
     project({
-      id: "5", title: "Fall supporters dinner", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
+      id: "5", lineOfEffortId: "4", title: "Fall supporters dinner", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
       startDate: d(-10), dueDate: d(21),
       operationalDetails: "40 guests. Private room. Catering contract signed.", plannedBudget: 15000, actualSpend: 13200,
     }),
     project({
-      id: "6", title: "Fellowship hiring round", departmentId: "5", ownerId: "4", outputTypeIds: [],
+      id: "6", lineOfEffortId: "5", title: "Fellowship hiring round", departmentId: "5", ownerId: "4", outputTypeIds: [],
       startDate: d(-5), dueDate: d(120), plannedBudget: 2000, actualSpend: 0, status: "inProgress",
     }),
     // History: finished work the planning function learns from.
     project({
-      id: "7", title: "Compute export controls explainer", departmentId: "2", ownerId: "6", outputTypeIds: ["1"],
+      id: "7", lineOfEffortId: "1", title: "Compute export controls explainer", departmentId: "2", ownerId: "6", outputTypeIds: ["1"],
       startDate: d(-200), dueDate: d(-120), status: "done", plannedBudget: 8000, actualSpend: 9400,
     }),
     project({
-      id: "8", title: "Spring AI security convening", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
+      id: "8", lineOfEffortId: "4", title: "Spring AI security convening", departmentId: "3", ownerId: "4", outputTypeIds: ["3"],
       startDate: d(-180), dueDate: d(-150), status: "done", plannedBudget: 20000, actualSpend: 18700,
     }),
   ];

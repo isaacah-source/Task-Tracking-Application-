@@ -101,6 +101,13 @@ describe("GraphTeamsTranscription", () => {
     await expect(new GraphTeamsTranscription(token, g.fetchFn).fetchTranscript("M1")).rejects.toThrow(/organizer.*Teams said: "no" \(Forbidden\)/);
   });
 
+  it("names the Teams admin setting when the tenant blocks transcript access", async () => {
+    const fetchFn = (async () => new Response(JSON.stringify({
+      error: { code: "Forbidden", message: "Graph API access to transcripts is disabled for this tenant.", innerError: { code: "GraphAccessToTranscriptsDisabled" } },
+    }), { status: 403 })) as typeof fetch;
+    await expect(new GraphTeamsTranscription(token, fetchFn).fetchTranscript("M1")).rejects.toThrow(/Teams admin center.*Transcript API access/);
+  });
+
   it("says so when the sign-in lacks the transcript permission", async () => {
     const g = fakeTeams({ deny: true });
     const jwt = (scp: string) => `h.${btoa(JSON.stringify({ scp })).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")}.s`;

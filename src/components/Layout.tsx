@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  CalendarDays, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
+  CalendarDays, Layers, ClipboardList, FolderKanban, Home, LogOut, MessageSquareText, MonitorPlay, Network, NotebookPen, Settings, Sparkles, Users,
 } from "lucide-react";
 import { useStore } from "@/data/store";
 import { isAdmin } from "@/domain/permissions";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "My work", icon: Home, end: true },
+  { to: "/lines", label: "Lines of effort", icon: Layers },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/tasks", label: "Task list", icon: ClipboardList },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },

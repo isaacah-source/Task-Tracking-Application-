@@ -12,7 +12,7 @@ import { departmentTree } from "./permissions";
 export type DisplayScope = "org" | "department" | "projects" | "people";
 export type DisplayStatus = "open" | "closed" | "all";
 export type DisplayWindow = "any" | "overdue" | "next7" | "next30" | "thisMonth" | "thisQuarter" | "custom";
-export type DisplayGroup = "project" | "person" | "department" | "none";
+export type DisplayGroup = "project" | "lineOfEffort" | "person" | "department" | "none";
 
 export interface DisplayOptions {
   title: string;
@@ -51,7 +51,9 @@ export const WINDOW_LABELS: Record<DisplayWindow, string> = {
   thisQuarter: "This quarter",
   custom: "Dates I choose",
 };
-export const GROUP_LABELS: Record<DisplayGroup, string> = { project: "By project", person: "By person", department: "By department", none: "One list" };
+export const GROUP_LABELS: Record<DisplayGroup, string> = {
+  project: "By project", lineOfEffort: "By line of effort", person: "By person", department: "By department", none: "One list",
+};
 
 export function defaultDisplayOptions(): DisplayOptions {
   return {
@@ -116,7 +118,7 @@ export interface DisplayResult {
   description: string;
 }
 
-export function buildDisplay(data: Pick<DataSet, "projects" | "tasks" | "dependencies" | "departments" | "people">, o: DisplayOptions, today: string): DisplayResult {
+export function buildDisplay(data: Pick<DataSet, "projects" | "tasks" | "dependencies" | "departments" | "people" | "linesOfEffort">, o: DisplayOptions, today: string): DisplayResult {
   const depts = o.scope === "department" && o.departmentId ? departmentTree(o.departmentId, data.departments) : null;
   const projects = data.projects.filter((p) => {
     if (o.scope === "department") return !!depts && depts.has(p.departmentId);
@@ -152,7 +154,10 @@ export function buildDisplay(data: Pick<DataSet, "projects" | "tasks" | "depende
   for (const t of ordered) {
     if (o.groupBy === "project") add(t.projectId, projectOf(t)?.title ?? "Project", t);
     else if (o.groupBy === "person") add(t.ownerId ?? "none", name(t.ownerId), t);
-    else if (o.groupBy === "department") {
+    else if (o.groupBy === "lineOfEffort") {
+      const l = data.linesOfEffort.find((x) => x.id === projectOf(t)?.lineOfEffortId);
+      add(l?.id ?? "none", l?.name ?? "No line of effort", t);
+    } else if (o.groupBy === "department") {
       const d = data.departments.find((x) => x.id === projectOf(t)?.departmentId);
       add(d?.id ?? "none", d?.name ?? "No department", t);
     } else add("all", "All tasks", t);
