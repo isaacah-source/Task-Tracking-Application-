@@ -310,6 +310,35 @@ normal retention. The app keeps a text copy on the meeting note. Long transcript
 60,000 characters, the most a SharePoint long text column holds; the full version stays in
 Teams. Demo mode uses a sample transcript (`MockTeamsTranscription`).
 
+## Weekly backup to your computer
+
+`tools/backup/` holds two PowerShell scripts for Windows that copy the app's data to your
+computer once a week:
+
+- `Backup-FSIData.ps1` signs in as you, reads every "FSI ..." list on the FSI Task Tracker
+  site and the Relationship Tracker workbook, and saves them in a dated .zip in
+  `Documents\FSI Backups`. Each list is saved as JSON (every field, for restoring) and CSV
+  (opens in Excel). It keeps the newest 12 backups and logs each run to `backup.log`. It only
+  reads; nothing in SharePoint changes. Run it as an admin so the admin-only deletion log is
+  included.
+- `Register-WeeklyBackup.ps1` installs the Microsoft Graph sign-in module for your account if
+  needed, runs a first backup (you sign in, and the first time approve read access for
+  "Microsoft Graph Command Line Tools"), then adds a Task Scheduler task that runs the backup
+  every Monday at 9:00. A missed week runs the next time the computer is on.
+
+To set it up, download both files into one folder, then in that folder run:
+
+```powershell
+Get-ChildItem *.ps1 | Unblock-File
+powershell -ExecutionPolicy Bypass -File .\Register-WeeklyBackup.ps1
+```
+
+Change the schedule with `-Day Friday -Time "4:30pm"`, the folder with `-BackupFolder`, and
+how many to keep with `-Keep`. To stop: `Unregister-ScheduledTask -TaskName "FSI Projects weekly backup"`.
+
+The task runs while you are signed in to Windows. If the saved Microsoft sign-in has expired,
+a sign-in window appears and the backup continues once you sign in.
+
 ## Development
 
 ```bash
