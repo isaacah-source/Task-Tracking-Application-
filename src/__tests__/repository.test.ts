@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryBackend } from "@/data/memoryBackend";
-import { PermissionError, ReasonRequiredError, Repository, RuleError } from "@/data/repository";
+import { PermissionError, ReasonRequiredError, Repository, RuleError, meetingOrigin } from "@/data/repository";
 import { buildSeed, STANDARD_DEPARTMENTS, STANDARD_OUTPUT_TYPES } from "@/data/seed";
 import { emptyDataSet, type DataSet, type Person } from "@/domain/types";
 
@@ -466,5 +466,18 @@ describe("deleting meeting notes", () => {
     const log = (await repo.loadDeletions()).find((d) => d.entityType === "meeting")!;
     expect(log.summary).toMatch(/Research weekly/);
     expect(JSON.parse(log.snapshot).taskIds).toEqual(["19"]);
+  });
+});
+
+describe("projects started in a meeting", () => {
+  it("records the meeting on the project's history so the note can list it", async () => {
+    const { repo } = await repoAs("Aaron");
+    const m = repo.data.meetings.find((x) => x.id === "2")!;
+    const p = await repo.createProject({
+      title: "Paper 2", lineOfEffortId: "1", departmentId: "2", ownerId: "3", outputTypeIds: [], operationalDetails: "",
+      startDate: null, dueDate: "2027-03-01", status: "notStarted", plannedBudget: 5000, actualSpend: 0,
+    }, [], meetingOrigin(m));
+    const created = repo.data.audit.find((a) => a.entityId === p.id && a.field === "created")!;
+    expect(created.reason).toBe(`Created in meeting "Research weekly" on ${m.date} (meeting #2)`);
   });
 });

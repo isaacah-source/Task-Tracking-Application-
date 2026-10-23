@@ -9,7 +9,9 @@ import { canWrite, departmentTree, isAdmin } from "@/domain/permissions";
 import { formatDate, formatShort } from "@/domain/dates";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
-import { DepartmentSelect, DueFlag, Empty, Field, PageHeader, PersonSelect, departmentOptions, deptName, personName } from "@/components/common";
+import { DepartmentSelect, DueFlag, Empty, Field, LineOfEffortSelect, PageHeader, PersonSelect, departmentOptions, deptName, personName } from "@/components/common";
+import { blankProject } from "@/components/ProjectForm";
+import { meetingOrigin } from "@/data/repository";
 import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,7 +191,12 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
     () => (conflicts.some((c) => c.kind === "resourcing" && c.severity === "conflict") ? suggestOwners(a, data, today) : []),
     [conflicts, a, data, today],
   );
+  const [mode, setMode] = useState<"task" | "project">("task");
+  // Adds a line to the typed notes, which save on their own a moment later.
+  const addLine = (line: string) => setNotes((n) => `${n}${n && !n.endsWith("\n") ? "\n" : ""}${line}\n`);
   const assigned = data.tasks.filter((t) => t.sourceMeetingId === meeting.id);
+  const origin = meetingOrigin(meeting);
+  const newProjects = data.projects.filter((p) => data.audit.some((x) => x.entityType === "project" && x.entityId === p.id && x.field === "created" && x.reason === origin));
   const projectTasks = a.projectId ? data.tasks.filter((t) => t.projectId === a.projectId && t.status !== "done") : [];
   const ready = !!(a.title.trim() && a.ownerId && a.projectId && a.dueDate);
   const hasConflict = conflicts.some((c) => c.severity === "conflict");
@@ -206,8 +213,8 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
       ),
     );
     if (t) {
-      toast(`Assigned to ${personName(data, a.ownerId)}`);
-      setNotes((n) => `${n}${n && !n.endsWith("\n") ? "\n" : ""}→ ${a.title} (${personName(data, a.ownerId)}, due ${formatShort(a.dueDate)})\n`);
+      toast(`Task added for ${personName(data, a.ownerId)}`);
+      addLine(`→ ${a.title} (${personName(data, a.ownerId)}, due ${formatShort(a.dueDate)})`);
       setA({ ...blank, projectId: a.projectId });
     }
   }
@@ -266,12 +273,29 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
           {canEdit && (
             <Card>
               <CardHeader>
-                <CardTitle>Assign something</CardTitle>
-                <CardDescription>Checked against everyone's existing work as you type.</CardDescription>
+                <CardTitle>Add from this meeting</CardTitle>
+                <CardDescription>
+                  {mode === "task" ? "A new task in a project, checked against everyone's existing work as you type." : "A new project, under one of FSI's lines of effort."}
+                </CardDescription>
+                <div className="flex w-fit gap-1 rounded-md border p-1" role="tablist" aria-label="What to add">
+                  {(["task", "project"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === m}
+                      onClick={() => setMode(m)}
+                      className={`rounded px-3 py-1 text-sm ${mode === m ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                    >
+                      {m === "task" ? "New task" : "New project"}
+                    </button>
+                  ))}
+                </div>
               </CardHeader>
               <CardContent>
+                {mode === "project" ? <NewProjectFromMeeting meeting={meeting} onAdded={addLine} /> : (
                 <form className="grid gap-3" onSubmit={(e) => (e.preventDefault(), ready && assign())}>
-                  <Field label="What">
+                  <Field label="Task">
                     <Input value={a.title} onChange={(e) => set("title", e.target.value)} placeholder="For example: send briefing invites" />
                   </Field>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -313,17 +337,33 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
                     )}
                   </div>
                   <Button type="submit" disabled={!ready} variant={hasConflict ? "destructive" : "default"}>
-                    <Plus />{hasConflict ? "Assign anyway" : "Assign"}
+                    <Plus />{hasConflict ? "Add task anyway" : "Add task"}
                   </Button>
                 </form>
+                )}
               </CardContent>
             </Card>
           )}
 
           <Card>
-            <CardHeader><CardTitle>Assigned in this meeting</CardTitle></CardHeader>
-            <CardContent>
-              {assigned.length === 0 ? <p className="text-sm text-muted-foreground">Nothing yet.</p> : (
+            <CardHeader><CardTitle>Added in this meeting</CardTitle></CardHeader>
+            <CardContent className="grid gap-3">
+              {newProjects.length > 0 && (
+                <ul className="divide-y">
+                  {newProjects.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <div>
+                        <Link to={`/projects/${p.id}`} className="font-medium hover:underline">{p.title}</Link>
+                        <div className="text-xs text-muted-foreground">
+                          New project · {personName(data, p.ownerId)} · {data.linesOfEffort.find((l) => l.id === p.lineOfEffortId)?.name}
+                        </div>
+                      </div>
+                      {p.dueDate && <Badge variant="outline">Due {formatShort(p.dueDate)}</Badge>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {assigned.length === 0 && newProjects.length === 0 ? <p className="text-sm text-muted-foreground">Nothing yet.</p> : assigned.length === 0 ? null : (
                 <ul className="divide-y">
                   {assigned.map((t) => (
                     <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
@@ -344,5 +384,63 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
         </div>
       </div>
     </>
+  );
+}
+
+/** "New project" side of the meeting's Add box. */
+function NewProjectFromMeeting({ meeting, onAdded }: { meeting: MeetingNote; onAdded: (line: string) => void }) {
+  const { data, me, run, repo, toast } = useStore();
+  const [title, setTitle] = useState("");
+  const [loe, setLoe] = useState<ID | null>(null);
+  const [dept, setDept] = useState<ID | null>(meeting.departmentId ?? me?.departmentId ?? null);
+  const [owner, setOwner] = useState<ID | null>(me?.id ?? null);
+  const [start, setStart] = useState("");
+  const [due, setDue] = useState("");
+  const [budget, setBudget] = useState(0);
+  const ready = !!(title.trim() && loe && dept && owner);
+
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!ready) return;
+        const p = await run(() => repo.createProject({
+          ...blankProject(owner, dept), title, lineOfEffortId: loe, startDate: start || null, dueDate: due || null, plannedBudget: budget,
+          operationalDetails: `Started in the meeting "${meeting.title}" (${formatDate(meeting.date)}).`,
+        }, [], meetingOrigin(meeting)));
+        if (p) {
+          toast(`Project "${p.title}" created`);
+          onAdded(`→ New project: ${p.title} (${personName(data, owner)}${due ? `, due ${formatShort(due)}` : ""})`);
+          setTitle(""); setStart(""); setDue(""); setBudget(0);
+        }
+      }}
+    >
+      <Field label="Project"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="For example: Paper 2 on compute governance" /></Field>
+      <Field label="Line of effort">
+        <LineOfEffortSelect
+          data={data}
+          value={loe}
+          onChange={(id) => {
+            setLoe(id);
+            const l = data.linesOfEffort.find((x) => x.id === id);
+            if (l && !dept) setDept(l.departmentId);
+          }}
+        />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Owner">
+          <PersonSelect people={data.people.filter((p) => p.role !== "viewer" && p.active)} value={owner} onChange={setOwner} allowEmpty emptyLabel="Choose an owner" />
+        </Field>
+        <Field label="Department"><DepartmentSelect departments={data.departments} value={dept} onChange={setDept} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+        <Field label="Due"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+        <Field label="Planned budget ($)"><Input type="number" min={0} step={500} value={budget} onChange={(e) => setBudget(Number(e.target.value))} /></Field>
+      </div>
+      <p className="text-xs text-muted-foreground">Add tasks, output types, and stages on the project's page afterwards.</p>
+      <Button type="submit" disabled={!ready}><Plus />Create project</Button>
+    </form>
   );
 }
