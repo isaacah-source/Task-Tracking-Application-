@@ -48,8 +48,8 @@ loads sample departments, people, and projects. Nothing is saved.
 - **Meeting notes mode.** Take notes and assign work during a meeting. While you fill in an
   assignment, the app checks it against existing commitments: other deadlines and events
   for that person, their hours against capacity, the project budget, and task order. When
-  someone is over capacity, it suggests colleagues with room. Notes are filed by department. The page lists today's meetings and the past three days
-  (plus upcoming notes already set up); **Past meetings** lists every older note you can see,
+  someone is over capacity, it suggests colleagues with room. Notes are filed by department. The page lists meetings from the last 5 days that have notes (typed or
+  transcribed) and your meetings in the next 5 days set up for Teams transcription; **Past meetings** lists every older note you can see,
   with search across notes and transcripts.
   Admins read every note; everyone else reads their own department's notes (with its
   sub-departments, and departments they own or lead) plus notes from meetings they were in.
@@ -281,7 +281,7 @@ Teams meeting option), and after the meeting reads the transcript Teams made.
      link. Only the meeting's organizer can do this.
 2. Open the meeting in Teams from the dialog and share the display screen. Recording and
    transcription start when the meeting starts.
-   Or, on **Meeting notes**, click **Show my Teams meetings** under "From your Teams calendar",
+   Or, on **Meeting notes**, click **Show my Teams meetings** under "Select Upcoming Meetings to Transcribe",
    tick the meetings you organize that should be transcribed, choose the department, and click
    **Transcribe and take notes**. Each one gets a meeting note.
 3. After the meeting ends, open the meeting note (the dialog links to it, or **Meeting notes**)
