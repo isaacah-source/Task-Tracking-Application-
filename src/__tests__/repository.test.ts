@@ -453,3 +453,18 @@ describe("lines of effort", () => {
     expect((await repo.loadDeletions()).some((d) => d.entityType === "lineOfEffort")).toBe(true);
   });
 });
+
+describe("deleting meeting notes", () => {
+  it("is for admins only, keeps the tasks assigned in it, and logs the deletion", async () => {
+    await expect((await repoAs("Aaron")).repo.deleteMeeting("2")).rejects.toBeInstanceOf(PermissionError);
+    await expect((await repoAs("Priya Raman (sample)")).repo.deleteMeeting("2")).rejects.toBeInstanceOf(PermissionError);
+    const { repo } = await repoAs("Ike Harris");
+    await repo.updateTask("19", { sourceMeetingId: "2" });
+    await repo.deleteMeeting("2");
+    expect(repo.data.meetings.some((m) => m.id === "2")).toBe(false);
+    expect(repo.task("19").sourceMeetingId).toBeNull();
+    const log = (await repo.loadDeletions()).find((d) => d.entityType === "meeting")!;
+    expect(log.summary).toMatch(/Research weekly/);
+    expect(JSON.parse(log.snapshot).taskIds).toEqual(["19"]);
+  });
+});

@@ -586,6 +586,20 @@ export class Repository {
     await this.update("meetings", id, patch);
   }
 
+  /**
+   * Deletes a meeting note. Admins only. Tasks assigned in the meeting stay; they just lose the
+   * link back to it. A linked Teams meeting, its recording, and its transcript stay in Teams.
+   */
+  async deleteMeeting(id: ID): Promise<void> {
+    this.requireAdmin();
+    const m = this.data.meetings.find((x) => x.id === id);
+    if (!m) return;
+    const tasks = this.data.tasks.filter((t) => t.sourceMeetingId === id);
+    await this.logDeletion("meeting", id, `Meeting note "${m.title}" (${m.date})`, null, m.departmentId, { meeting: m, taskIds: tasks.map((t) => t.id) });
+    for (const t of tasks) await this.update("tasks", t.id, { sourceMeetingId: null });
+    await this.remove("meetings", id);
+  }
+
   // ---- Admin: departments, output types, people ----
 
   async saveDepartment(input: Omit<Department, "id">, id?: ID): Promise<void> {
