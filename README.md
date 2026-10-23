@@ -48,7 +48,9 @@ loads sample departments, people, and projects. Nothing is saved.
 - **Meeting notes mode.** Take notes and assign work during a meeting. While you fill in an
   assignment, the app checks it against existing commitments: other deadlines and events
   for that person, their hours against capacity, the project budget, and task order. When
-  someone is over capacity, it suggests colleagues with room. Notes are filed by department.
+  someone is over capacity, it suggests colleagues with room. Notes are filed by department. The page lists today's meetings and the past three days
+  (plus upcoming notes already set up); **Past meetings** lists every older note you can see,
+  with search across notes and transcripts.
   Admins read every note; everyone else reads their own department's notes (with its
   sub-departments, and departments they own or lead) plus notes from meetings they were in.
 - **Handoffs.** Give a project ordered stages, each with its own owner and department.
