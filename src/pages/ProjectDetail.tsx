@@ -145,7 +145,7 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
       ) : (
         <Table>
           <THead>
-            <TR><TH>Task</TH><TH>Owner</TH><TH>Due</TH><TH>Waits on</TH><TH>Status</TH><TH></TH></TR>
+            <TR><TH>Task</TH><TH className="hidden md:table-cell">Owner</TH><TH>Due</TH><TH className="hidden md:table-cell">Waits on</TH><TH>Status</TH><TH></TH></TR>
           </THead>
           <TBody>
             {tasks.map((t) => {
@@ -155,15 +155,19 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
                   <TD className="max-w-xs">
                     <div className="font-medium">{t.title}</div>
                     <div className="text-xs text-muted-foreground">{TASK_KIND_LABELS[t.kind]}{t.effortHours ? ` · ${t.effortHours} h` : ""}{t.estimatedCost ? ` · ${money(t.estimatedCost)}` : ""}</div>
+                    <div className="text-xs text-muted-foreground md:hidden">
+                      {personName(data, t.ownerId)}
+                      {blocked.has(t.id) && <div className="mt-1"><BlockedBadge waitingOn={blockers(t, data.tasks, data.dependencies).map((b) => b.title)} /></div>}
+                    </div>
                   </TD>
-                  <TD>{personName(data, t.ownerId)}</TD>
+                  <TD className="hidden md:table-cell">{personName(data, t.ownerId)}</TD>
                   <TD>
                     <div className="flex flex-col items-start gap-1">
                       <DateText date={t.dueDate} status={t.status} today={today} />
                       <DueFlag dueDate={t.dueDate} status={t.status} today={today} />
                     </div>
                   </TD>
-                  <TD className="max-w-[14rem] text-xs text-muted-foreground">
+                  <TD className="hidden max-w-[14rem] text-xs text-muted-foreground md:table-cell">
                     {blocked.has(t.id) && <div className="mb-1"><BlockedBadge waitingOn={blockers(t, data.tasks, data.dependencies).map((b) => b.title)} /></div>}
                     {waits.join(", ")}
                   </TD>

@@ -116,15 +116,15 @@ export default function TasksPage() {
             <TR>
               <Header k="flag">Flag</Header>
               <Header k="title">Task</Header>
-              <Header k="project">Project</Header>
-              <Header k="department">Department</Header>
-              <Header k="owner">Owner</Header>
-              <Header k="kind">Type</Header>
-              <Header k="startDate">Start</Header>
+              <Header k="project" className="hidden md:table-cell">Project</Header>
+              <Header k="department" className="hidden md:table-cell">Department</Header>
+              <Header k="owner" className="hidden md:table-cell">Owner</Header>
+              <Header k="kind" className="hidden md:table-cell">Type</Header>
+              <Header k="startDate" className="hidden md:table-cell">Start</Header>
               <Header k="dueDate">Due</Header>
               <Header k="status">Status</Header>
-              <Header k="effortHours" className="text-right">Hours</Header>
-              <Header k="estimatedCost" className="text-right">Cost</Header>
+              <Header k="effortHours" className="hidden text-right md:table-cell">Hours</Header>
+              <Header k="estimatedCost" className="hidden text-right md:table-cell">Cost</Header>
             </TR>
           </THead>
           <TBody>
@@ -138,16 +138,21 @@ export default function TasksPage() {
                       {blocked.has(t.id) && <BlockedBadge waitingOn={blockers(t, data.tasks, data.dependencies).map((b) => b.title)} />}
                     </div>
                   </TD>
-                  <TD className="min-w-[12rem] max-w-xs font-medium"><Link to={`/projects/${t.projectId}?task=${t.id}`} className="hover:underline">{t.title}</Link></TD>
-                  <TD className="max-w-[12rem] truncate"><Link to={`/projects/${t.projectId}`} className="hover:underline">{project(t)?.title}</Link></TD>
-                  <TD className="whitespace-nowrap">{deptName(data, project(t)?.departmentId)}</TD>
-                  <TD className="whitespace-nowrap">{personName(data, t.ownerId)}</TD>
-                  <TD>{TASK_KIND_LABELS[t.kind]}</TD>
-                  <TD className="whitespace-nowrap">{t.startDate ? formatDate(t.startDate) : ""}</TD>
+                  <TD className="max-w-xs font-medium md:min-w-[12rem]">
+                    <Link to={`/projects/${t.projectId}?task=${t.id}`} className="hover:underline">{t.title}</Link>
+                    <div className="whitespace-normal text-xs font-normal text-muted-foreground md:hidden">
+                      {[project(t)?.title, personName(data, t.ownerId)].filter(Boolean).join(" · ")}
+                    </div>
+                  </TD>
+                  <TD className="hidden max-w-[12rem] truncate md:table-cell"><Link to={`/projects/${t.projectId}`} className="hover:underline">{project(t)?.title}</Link></TD>
+                  <TD className="hidden whitespace-nowrap md:table-cell">{deptName(data, project(t)?.departmentId)}</TD>
+                  <TD className="hidden whitespace-nowrap md:table-cell">{personName(data, t.ownerId)}</TD>
+                  <TD className="hidden md:table-cell">{TASK_KIND_LABELS[t.kind]}</TD>
+                  <TD className="hidden whitespace-nowrap md:table-cell">{t.startDate ? formatDate(t.startDate) : ""}</TD>
                   <TD className="whitespace-nowrap"><DateText date={t.dueDate} status={t.status} today={today} /></TD>
                   <TD title={STATUS_LABELS[t.status]}><StatusBadge status={t.status} /></TD>
-                  <TD className="text-right">{t.effortHours || ""}</TD>
-                  <TD className="text-right">{t.estimatedCost ? money(t.estimatedCost) : ""}</TD>
+                  <TD className="hidden text-right md:table-cell">{t.effortHours || ""}</TD>
+                  <TD className="hidden text-right md:table-cell">{t.estimatedCost ? money(t.estimatedCost) : ""}</TD>
                 </TR>
               );
             })}
