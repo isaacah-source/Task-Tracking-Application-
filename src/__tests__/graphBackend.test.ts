@@ -123,6 +123,8 @@ describe("GraphListsBackend", () => {
     await b.setup();
     const created = await b.create("departments", { name: "Comms", parentId: null, ownerId: "2" });
     expect(created).toEqual({ id: "1", name: "Comms", parentId: null, ownerId: "2" });
+    // Empty values are left out of a new item, so a newer optional column need not exist yet.
+    expect(Object.keys(g.calls.find((c) => c.method === "POST" && c.body?.fields)!.body.fields)).not.toContain("fsiParentId");
     await b.update("departments", created.id, { name: "Communications" });
     expect(g.calls.at(-1)).toMatchObject({ method: "PATCH", body: { Title: "Communications" } });
     expect((await b.load()).departments).toEqual([{ id: "1", name: "Communications", parentId: null, ownerId: "2" }]);

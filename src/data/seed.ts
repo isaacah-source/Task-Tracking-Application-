@@ -104,7 +104,7 @@ export function buildSeed(today: string): DataSet {
 
   const task = (t: Partial<Task> & Pick<Task, "id" | "projectId" | "title">): Task => ({
     kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
-    effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, completedAt: null, ...t,
+    effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...t,
   });
 
   data.tasks = [
@@ -135,6 +135,10 @@ export function buildSeed(today: string): DataSet {
     task({ id: "19", projectId: "6", title: "Review applications", ownerId: "3", startDate: d(40), dueDate: d(70), effortHours: 20 }),
     // History
     task({ id: "20", projectId: "7", title: "Draft explainer", ownerId: "6", startDate: d(-200), dueDate: d(-140), status: "done", effortHours: 50, completedAt: ts(-135) }),
+    // Subtasks of "Prepare briefing 2 slides"
+    task({ id: "22", projectId: "4", parentTaskId: "14", title: "Outline the slides", ownerId: "6", startDate: d(-4), dueDate: d(-3), status: "done", effortHours: 0.75, completedAt: ts(-3) }),
+    task({ id: "23", projectId: "4", parentTaskId: "14", title: "Design the slides", ownerId: "6", startDate: d(-2), dueDate: d(1), status: "inProgress", effortHours: 2.5 }),
+    task({ id: "24", projectId: "4", parentTaskId: "14", title: "Fact-check the figures", ownerId: "3", startDate: d(0), dueDate: d(2), effortHours: 1.25 }),
     task({ id: "21", projectId: "8", title: "Run convening", kind: "event", ownerId: "4", startDate: d(-150), dueDate: d(-150), status: "done", effortHours: 20, completedAt: ts(-150) }),
   ];
 

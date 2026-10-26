@@ -13,6 +13,7 @@ import { canDeleteInDepartment, canEditProject, canManageLinesOfEffort, canSeeMe
 import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
 import { completeStage, stagesTriggeredBy, stagesFor } from "@/domain/transitions";
 import { isIsoDate } from "@/domain/dates";
+import { roundEffort, subtasksOf } from "@/domain/tasks";
 
 /** A change broke a rule. `problems` are shown to the person as a list. */
 export class RuleError extends Error {
@@ -52,7 +53,7 @@ export function meetingOrigin(m: Pick<MeetingNote, "id" | "title" | "date">): st
   return `Created in meeting "${m.title}" on ${m.date} (meeting #${m.id})`;
 }
 
-export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId"> & { sourceMeetingId?: ID | null };
+export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId" | "parentTaskId"> & { sourceMeetingId?: ID | null; parentTaskId?: ID | null };
 export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & Partial<Pick<Stage, "handoffNote" | "handoffDate" | "handoffTaskId">>;
 
 function stringify(v: unknown): string {
@@ -270,17 +271,21 @@ export class Repository {
   // ---- Tasks ----
 
   async createTask(input: TaskInput, predecessorIds: ID[] = []): Promise<Task> {
+    const parentTaskId = input.parentTaskId ?? null;
+    // A subtask always lives in its parent's project.
+    if (parentTaskId) input = { ...input, projectId: this.checkParent(parentTaskId, null).projectId };
+    input = { ...input, effortHours: roundEffort(input.effortHours) };
     const project = this.project(input.projectId);
     this.requireEdit(project);
     if (!input.title.trim()) throw new RuleError(["Give the task a name."]);
     this.checkDates(input);
     // Check ordering as if the links already existed.
-    const draft: Task = { ...input, id: "__new__", title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, completedAt: null };
+    const draft: Task = { ...input, id: "__new__", title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId, completedAt: null };
     const draftDeps = predecessorIds.map((p, i) => ({ id: `__d${i}`, predecessorId: p, successorId: draft.id }));
     const problems = orderingProblems(draft, this.data.tasks, [...this.data.dependencies, ...draftDeps]).map((x) => x.message);
     if (problems.length) throw new RuleError(problems);
     const task = await this.create("tasks", {
-      ...input, title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null,
+      ...input, title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId,
       completedAt: input.status === "done" ? this.nowIso() : null,
     });
     await this.log("task", task.id, task.projectId, "created", "", task.title);
@@ -296,6 +301,13 @@ export class Repository {
   async updateTask(id: ID, patch: Partial<Omit<Task, "id">>, reason = ""): Promise<{ handedOff: Stage[] }> {
     const before = this.task(id);
     this.requireEdit(this.project(before.projectId));
+    if (patch.effortHours !== undefined) patch = { ...patch, effortHours: roundEffort(patch.effortHours) };
+    if (patch.parentTaskId && patch.parentTaskId !== before.parentTaskId) {
+      if (this.checkParent(patch.parentTaskId, id).projectId !== before.projectId) throw new RuleError(["A subtask has to be in the same project as its parent task."]);
+    }
+    if (patch.projectId && patch.projectId !== before.projectId && subtasksOf(id, this.data.tasks).length) {
+      throw new RuleError(["Move or remove this task's subtasks before moving it to another project."]);
+    }
     const keys = changedKeys(before, patch);
     if (!keys.length) return { handedOff: [] };
     const dateKeys = keys.filter((k) => DATE_FIELDS.has(k));
@@ -337,16 +349,33 @@ export class Repository {
     return moves.length;
   }
 
+  /** Deletes a task and its subtasks, logging them together. */
   async deleteTask(id: ID): Promise<void> {
     const t = this.task(id);
     const project = this.project(t.projectId);
     this.requireDelete(project);
-    await this.logDeletion("task", id, `Task "${t.title}" in "${project.title}"`, project.id, project.departmentId, {
+    const subtasks = subtasksOf(id, this.data.tasks);
+    const ids = new Set([id, ...subtasks.map((s) => s.id)]);
+    const what = `Task "${t.title}" in "${project.title}"${subtasks.length ? ` with ${subtasks.length} subtask${subtasks.length === 1 ? "" : "s"}` : ""}`;
+    await this.logDeletion("task", id, what, project.id, project.departmentId, {
       task: t,
-      dependencies: this.data.dependencies.filter((x) => x.predecessorId === id || x.successorId === id),
-      memberships: this.data.memberships.filter((x) => x.targetType === "task" && x.targetId === id),
+      subtasks,
+      dependencies: this.data.dependencies.filter((x) => ids.has(x.predecessorId) || ids.has(x.successorId)),
+      memberships: this.data.memberships.filter((x) => x.targetType === "task" && ids.has(x.targetId)),
     });
+    for (const s of subtasks) await this.removeTaskRecords(s.id);
     await this.removeTaskRecords(id);
+  }
+
+  /** The parent for a new or moved subtask. Subtasks go one level deep only. */
+  private checkParent(parentId: ID, childId: ID | null): Task {
+    const parent = this.data.tasks.find((t) => t.id === parentId);
+    if (!parent) throw new RuleError(["That parent task no longer exists."]);
+    if (parent.parentTaskId) throw new RuleError([`"${parent.title}" is already a subtask, and subtasks cannot have their own subtasks.`]);
+    if (childId && (parentId === childId || subtasksOf(childId, this.data.tasks).length)) {
+      throw new RuleError(["A task with subtasks cannot become a subtask itself."]);
+    }
+    return parent;
   }
 
   /** Removes a task with its links and invitations. Callers check permission and log first. */

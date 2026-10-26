@@ -20,7 +20,12 @@ loads sample departments, people, and projects. Nothing is saved.
   details, dates, a planned budget, and actual spend. Milestones live in the project's tasks;
   the project list shows the next open one.
 - **Tasks, events, and milestones** sit inside projects. Each has an owner, dates, an effort
-  estimate in hours, and an estimated cost.
+  estimate in hours and minutes (in 15-minute steps), and an estimated cost.
+- **Subtasks.** Open a task and add subtasks under it by name, with an owner and due date if
+  you want. Tick one off right there, or open it to change anything else. Subtasks are tasks
+  in their own right: they show on the Task list, My work, the timeline, and workload, and
+  they can wait on other tasks. They stay in their parent's project, go one level deep, and
+  are deleted with their parent. The project's Tasks tab lists them under their parent.
 - **Task order.** A task can wait on other tasks, in any project. The app will not let a task
   start, or move its dates, ahead of the work it waits on. It marks waiting tasks as
   **Blocked** everywhere. Moving a due date later can push all downstream work by the same
@@ -161,8 +166,9 @@ message to wait for an admin. Setup adds the list and the projects' Line Of Effo
 changes nothing else. Then add the lines of effort and choose one on each project (the
 Lines of effort page links to the projects that still need one).
 
-**New columns on existing lists** (for example the Teams columns on FSI Meeting Notes, or the
-handoff date and milestone on FSI Project Stages): an admin
+**New columns on existing lists** (for example the Teams columns on FSI Meeting Notes, the
+handoff date and milestone on FSI Project Stages, or the Parent Task column on FSI Tasks that
+subtasks need): an admin
 opens **Admin**, **Connections**. When a list is missing columns, a yellow box lists them with
 an **Update SharePoint lists** button. Updating adds the columns and keeps all data.
 

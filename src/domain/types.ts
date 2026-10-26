@@ -137,6 +137,8 @@ export interface Task {
   notes: string;
   /** The meeting this task was assigned in, when it came from meeting notes mode. */
   sourceMeetingId: ID | null;
+  /** The task this is a subtask of, in the same project. Subtasks have no subtasks of their own. */
+  parentTaskId: ID | null;
   completedAt: string | null;
 }
 

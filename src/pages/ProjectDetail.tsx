@@ -5,6 +5,7 @@ import { useStore } from "@/data/store";
 import type { ID, Project, RelationshipGroup, Stage, Task } from "@/domain/types";
 import { MEMBERSHIP_LABELS, RELATIONSHIP_GROUPS, RELATIONSHIP_GROUP_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { blockedTaskIds, blockers, topoOrder } from "@/domain/dependencies";
+import { formatEffort, subtasksOf, withSubtasks } from "@/domain/tasks";
 import { activeStage, stagesFor } from "@/domain/transitions";
 import { formatDate } from "@/domain/dates";
 import { fieldLabel } from "@/data/repository";
@@ -12,7 +13,7 @@ import {
   BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, handoffMessage, PersonSelect, Stat, StatusBadge, deptName, money, personName,
 } from "@/components/common";
 import { ProjectForm } from "@/components/ProjectForm";
-import { TaskDialog } from "@/components/TaskDialog";
+import { SubtaskMark, TaskDialog } from "@/components/TaskDialog";
 import { Gantt } from "@/components/Gantt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ export default function ProjectDetailPage() {
           projectId={project.id}
           task={taskDialog.task}
           canEdit={canEdit}
+          onOpenTask={(t) => setTaskDialog({ task: t })}
         />
       )}
     </>
@@ -130,7 +132,7 @@ export default function ProjectDetailPage() {
 
 function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boolean; onOpen: (t: Task | null) => void }) {
   const { data, today, run, repo, toast } = useStore();
-  const tasks = topoOrder(data.tasks.filter((t) => t.projectId === project.id), data.dependencies);
+  const tasks = withSubtasks(topoOrder(data.tasks.filter((t) => t.projectId === project.id), data.dependencies));
   const blocked = blockedTaskIds(data.tasks, data.dependencies);
   const title = (id: ID) => data.tasks.find((t) => t.id === id)?.title ?? "";
 
@@ -148,13 +150,19 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
             <TR><TH>Task</TH><TH className="hidden md:table-cell">Owner</TH><TH>Due</TH><TH className="hidden md:table-cell">Waits on</TH><TH>Status</TH><TH></TH></TR>
           </THead>
           <TBody>
-            {tasks.map((t) => {
+            {tasks.map(({ task: t, depth }) => {
+              const subs = depth ? [] : subtasksOf(t.id, data.tasks);
               const waits = data.dependencies.filter((d) => d.successorId === t.id).map((d) => title(d.predecessorId));
               return (
                 <TR key={t.id} className="cursor-pointer" onClick={() => onOpen(t)}>
-                  <TD className="max-w-xs">
-                    <div className="font-medium">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">{TASK_KIND_LABELS[t.kind]}{t.effortHours ? ` · ${t.effortHours} h` : ""}{t.estimatedCost ? ` · ${money(t.estimatedCost)}` : ""}</div>
+                  <TD className={depth ? "min-w-[11rem] max-w-xs pl-5 md:pl-8" : "min-w-[11rem] max-w-xs"}>
+                    <div className="flex items-baseline font-medium">{depth ? <SubtaskMark /> : null}<span>{t.title}</span></div>
+                    <div className="text-xs text-muted-foreground">
+                      {[
+                        TASK_KIND_LABELS[t.kind], formatEffort(t.effortHours), t.estimatedCost ? money(t.estimatedCost) : "",
+                        subs.length ? `${subs.filter((x) => x.status === "done").length} of ${subs.length} subtasks done` : "",
+                      ].filter(Boolean).join(" · ")}
+                    </div>
                     <div className="text-xs text-muted-foreground md:hidden">
                       {personName(data, t.ownerId)}
                       {blocked.has(t.id) && <div className="mt-1"><BlockedBadge waitingOn={blockers(t, data.tasks, data.dependencies).map((b) => b.title)} /></div>}
