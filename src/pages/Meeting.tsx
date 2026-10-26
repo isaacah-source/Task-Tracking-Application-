@@ -15,6 +15,7 @@ import { blankProject } from "@/components/ProjectForm";
 import { meetingOrigin } from "@/data/repository";
 import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
 import { MeetingRow } from "@/components/MeetingRow";
+import { EffortInput } from "@/components/EffortInput";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -300,10 +301,10 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
                       </Select>
                     </Field>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Start"><Input type="date" value={a.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} /></Field>
                     <Field label="Due"><Input type="date" value={a.dueDate ?? ""} onChange={(e) => set("dueDate", e.target.value || null)} /></Field>
-                    <Field label="Hours"><Input type="number" min={0} value={a.effortHours} onChange={(e) => set("effortHours", Number(e.target.value))} /></Field>
+                    <Field label="Effort"><EffortInput value={a.effortHours} onChange={(h) => set("effortHours", h)} /></Field>
                     <Field label="Cost ($)"><Input type="number" min={0} step={50} value={a.estimatedCost} onChange={(e) => set("estimatedCost", Number(e.target.value))} /></Field>
                   </div>
                   {projectTasks.length > 0 && (

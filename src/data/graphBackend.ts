@@ -137,8 +137,11 @@ export class GraphListsBackend implements Backend {
   }
 
   async create<K extends TableName>(table: K, row: NewRow<K>): Promise<Row<K>> {
+    // Empty values are left out: a new item starts empty anyway, and this way a column added
+    // in a later version only has to exist once something is actually stored in it.
+    const fields = Object.fromEntries(Object.entries(toFields(table, row as Partial<Row<K>>)).filter(([, v]) => v !== null));
     const r = await this.call<{ id: string; fields: Record<string, unknown> }>(
-      "POST", `${await this.listPath(table)}/items`, { fields: toFields(table, row as Partial<Row<K>>) },
+      "POST", `${await this.listPath(table)}/items`, { fields },
     );
     return fromFields(table, r.id, r.fields ?? toFields(table, row as Partial<Row<K>>));
   }

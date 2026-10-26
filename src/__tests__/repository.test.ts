@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryBackend } from "@/data/memoryBackend";
-import { PermissionError, ReasonRequiredError, Repository, RuleError, meetingOrigin } from "@/data/repository";
+import { PermissionError, ReasonRequiredError, Repository, RuleError, meetingOrigin, type TaskInput } from "@/data/repository";
 import { buildSeed, STANDARD_DEPARTMENTS, STANDARD_OUTPUT_TYPES } from "@/data/seed";
 import { emptyDataSet, type DataSet, type Person } from "@/domain/types";
 
@@ -479,5 +479,43 @@ describe("projects started in a meeting", () => {
     }, [], meetingOrigin(m));
     const created = repo.data.audit.find((a) => a.entityId === p.id && a.field === "created")!;
     expect(created.reason).toBe(`Created in meeting "Research weekly" on ${m.date} (meeting #2)`);
+  });
+});
+
+describe("subtasks and effort", () => {
+  const sub = (over: Partial<TaskInput> = {}): TaskInput => ({
+    projectId: "1", parentTaskId: "14", title: "Print handouts", kind: "task", ownerId: "6", startDate: null, dueDate: null,
+    status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", ...over,
+  });
+
+  it("puts a subtask in its parent's project", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    const t = await repo.createTask(sub());
+    expect(t.projectId).toBe("4");
+    expect(t.parentTaskId).toBe("14");
+  });
+
+  it("keeps subtasks one level deep", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await expect(repo.createTask(sub({ parentTaskId: "22" }))).rejects.toBeInstanceOf(RuleError);
+    // A task with subtasks cannot be moved under another task.
+    await expect(repo.updateTask("14", { parentTaskId: "13" })).rejects.toBeInstanceOf(RuleError);
+  });
+
+  it("deletes subtasks with their parent and logs them together", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    await repo.deleteTask("14");
+    expect(repo.data.tasks.some((t) => ["14", "22", "23", "24"].includes(t.id))).toBe(false);
+    expect(repo.data.deletions.at(-1)?.summary).toMatch(/with 3 subtasks/);
+  });
+
+  it("rounds effort to 15 minutes", async () => {
+    const { repo } = await repoAs("Ike Harris");
+    const t = await repo.createTask(sub({ parentTaskId: null, projectId: "4", effortHours: 1.3 }));
+    expect(t.effortHours).toBe(1.25);
+    await repo.updateTask(t.id, { effortHours: 0.1 });
+    expect(repo.task(t.id).effortHours).toBe(0);
+    await repo.updateTask(t.id, { effortHours: 2.4 });
+    expect(repo.task(t.id).effortHours).toBe(2.5);
   });
 });

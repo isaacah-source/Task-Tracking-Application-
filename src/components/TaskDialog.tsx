@@ -1,20 +1,27 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import type { ID, Status, Task, TaskKind } from "@/domain/types";
 import { STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { checkAssignment } from "@/domain/conflicts";
 import { predecessorIds, successorIds } from "@/domain/dependencies";
-import { Trash2 } from "lucide-react";
+import { CornerDownRight, Plus, Trash2 } from "lucide-react";
+import { formatDate } from "@/domain/dates";
+import { subtasksOf } from "@/domain/tasks";
 import { RuleError, type TaskInput } from "@/data/repository";
 import { useStore } from "@/data/store";
 import { ConflictList } from "./ConflictList";
-import { Field, PersonSelect, handoffMessage } from "./common";
+import { EffortInput } from "./EffortInput";
+import { Field, PersonSelect, handoffMessage, personName } from "./common";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input, Select, Textarea } from "./ui/input";
 
-/** Create or edit a task. Shows conflicts live and enforces dependency order on save. */
-export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
+/**
+ * Create or edit a task. Shows conflicts live and enforces dependency order on save. Pass
+ * `parentTaskId` to add a subtask; `onOpenTask` lets the subtask list open one of them.
+ */
+export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTaskId = null, onOpenTask }: {
   open: boolean; onClose: () => void; projectId: ID; task?: Task | null; canEdit: boolean;
+  parentTaskId?: ID | null; onOpenTask?: (t: Task) => void;
 }) {
   const { data, run, today, repo, toast } = useStore();
   const project = data.projects.find((p) => p.id === projectId);
@@ -25,9 +32,12 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
       ? { ...task }
       : {
           projectId, title: "", kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
-          effortHours: 0, estimatedCost: 0, notes: "",
+          effortHours: 0, estimatedCost: 0, notes: "", parentTaskId,
         },
   );
+  const parent = data.tasks.find((t) => t.id === (task?.parentTaskId ?? parentTaskId)) ?? null;
+  const subtasks = task ? subtasksOf(task.id, data.tasks) : [];
+  const openSubtasks = subtasks.filter((t) => t.status !== "done").length;
   const initialPreds = task ? predecessorIds(task.id, data.dependencies) : [];
   const [preds, setPreds] = useState<ID[]>(initialPreds);
   const [shiftDown, setShiftDown] = useState<{ newDue: string } | null>(null);
@@ -93,7 +103,13 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{editing ? (canEdit ? "Edit task" : task!.title) : "Add a task"}</DialogTitle>
+          <DialogTitle>{editing ? (canEdit ? (parent ? "Edit subtask" : "Edit task") : task!.title) : parent ? "Add a subtask" : "Add a task"}</DialogTitle>
+          {parent && (
+            <p className="text-sm text-muted-foreground">
+              Subtask of{" "}
+              {onOpenTask ? <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={() => onOpenTask(parent)}>{parent.title}</button> : <span className="font-medium">{parent.title}</span>}
+            </p>
+          )}
         </DialogHeader>
         {shiftDown ? (
           <div className="grid gap-3 text-sm">
@@ -133,8 +149,8 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
                 </Field>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Effort (hours)" hint="Rough estimate. Drives the workload view.">
-                  <Input type="number" min={0} step={1} value={v.effortHours} onChange={(e) => set("effortHours", Number(e.target.value))} />
+                <Field label="Effort" hint="Rough estimate, in 15-minute steps. Drives the workload view.">
+                  <EffortInput value={v.effortHours} onChange={(h) => set("effortHours", h)} />
                 </Field>
                 <Field label="Estimated cost ($)" hint="Counts against the project budget while open.">
                   <Input type="number" min={0} step={50} value={v.estimatedCost} onChange={(e) => set("estimatedCost", Number(e.target.value))} />
@@ -162,6 +178,10 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
                 <Textarea rows={2} value={v.notes} onChange={(e) => set("notes", e.target.value)} />
               </Field>
             </fieldset>
+            {editing && !task!.parentTaskId && <Subtasks task={task!} subtasks={subtasks} canEdit={canEdit} onOpenTask={onOpenTask} />}
+            {v.status === "done" && openSubtasks > 0 && (
+              <p className="text-sm text-amber-800">{openSubtasks} subtask{openSubtasks === 1 ? " is" : "s are"} still open.</p>
+            )}
             {canEdit && (
               <div className="rounded-md border bg-muted/40 p-3">
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conflict check</div>
@@ -175,7 +195,8 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
                   variant="ghost"
                   className="text-red-700 hover:bg-red-50 hover:text-red-800 sm:mr-auto"
                   onClick={async () => {
-                    if (!confirm(`Delete "${task!.title}"? The deletion is recorded in the admin deletion log.`)) return;
+                    const also = subtasks.length ? ` and its ${subtasks.length} subtask${subtasks.length === 1 ? "" : "s"}` : "";
+                    if (!confirm(`Delete "${task!.title}"${also}? The deletion is recorded in the admin deletion log.`)) return;
                     if (await run(() => repo.deleteTask(task!.id).then(() => true), "Task deleted")) onClose();
                   }}
                 >
@@ -190,4 +211,77 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit }: {
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The subtasks of a task: tick one off, open it, or add a new one by name. */
+function Subtasks({ task, subtasks, canEdit, onOpenTask }: { task: Task; subtasks: Task[]; canEdit: boolean; onOpenTask?: (t: Task) => void }) {
+  const { data, repo, run } = useStore();
+  const [title, setTitle] = useState("");
+  const [ownerId, setOwnerId] = useState<ID | null>(task.ownerId);
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const done = subtasks.filter((t) => t.status === "done").length;
+
+  async function add() {
+    if (!title.trim()) return;
+    const ok = await run(() => repo.createTask({
+      projectId: task.projectId, parentTaskId: task.id, title, kind: "task", ownerId, startDate: null, dueDate,
+      status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "",
+    }).then(() => true), "Subtask added");
+    if (ok) {
+      setTitle("");
+      setDueDate(null);
+    }
+  }
+  const onKey = (e: KeyboardEvent) => {
+    // Enter adds the subtask instead of saving the whole task.
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void add();
+    }
+  };
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between">
+        <div className="text-sm font-medium">Subtasks</div>
+        {subtasks.length > 0 && <div className="text-xs text-muted-foreground">{done} of {subtasks.length} done</div>}
+      </div>
+      {subtasks.length > 0 ? (
+        <ul className="divide-y rounded-md border bg-card">
+          {subtasks.map((t) => (
+            <li key={t.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
+              <input
+                type="checkbox"
+                aria-label={`Mark "${t.title}" done`}
+                checked={t.status === "done"}
+                disabled={!canEdit}
+                onChange={(e) => run(() => repo.updateTask(t.id, { status: e.target.checked ? "done" : "notStarted" }))}
+              />
+              <div className="min-w-0 flex-1">
+                {onOpenTask ? (
+                  <button type="button" className={`text-left hover:underline ${t.status === "done" ? "text-muted-foreground line-through" : ""}`} onClick={() => onOpenTask(t)}>{t.title}</button>
+                ) : <span className={t.status === "done" ? "text-muted-foreground line-through" : ""}>{t.title}</span>}
+                <div className="text-xs text-muted-foreground">
+                  {[t.ownerId && personName(data, t.ownerId), t.dueDate && `Due ${formatDate(t.dueDate)}`].filter(Boolean).join(" · ")}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : !canEdit && <p className="text-sm text-muted-foreground">No subtasks.</p>}
+      {canEdit && (
+        <div className="grid gap-2 sm:grid-cols-[1fr_10rem_9.5rem_auto]">
+          <Input placeholder="Add a subtask" aria-label="New subtask" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={onKey} />
+          <PersonSelect people={data.people.filter((p) => p.role !== "viewer")} value={ownerId} onChange={setOwnerId} allowEmpty />
+          <Input type="date" aria-label="Subtask due date" value={dueDate ?? ""} onChange={(e) => setDueDate(e.target.value || null)} onKeyDown={onKey} />
+          <Button type="button" variant="outline" disabled={!title.trim()} onClick={add}><Plus />Add</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Marks a subtask row in task tables. */
+export function SubtaskMark() {
+  return <CornerDownRight className="mr-1 inline h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Subtask" />;
 }

@@ -87,7 +87,7 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     columns: {
       projectId: "ref", kind: "text", ownerId: "ref", startDate: "date", dueDate: "date",
       status: "text", effortHours: "number", estimatedCost: "number", notes: "note", sourceMeetingId: "ref",
-      completedAt: "stamp",
+      parentTaskId: "ref", completedAt: "stamp",
     },
   }),
   dependencies: def({

@@ -6,7 +6,7 @@ import {
 
 const t = (id: string, over: Partial<Task> = {}): Task => ({
   id, projectId: "p", title: `T${id}`, kind: "task", ownerId: null, startDate: null, dueDate: null,
-  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, completedAt: null, ...over,
+  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...over,
 });
 const dep = (p: string, s: string, id = `${p}-${s}`): Dependency => ({ id, predecessorId: p, successorId: s });
 

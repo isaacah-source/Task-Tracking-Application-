@@ -8,6 +8,8 @@ import { blockedTaskIds, blockers } from "@/domain/dependencies";
 import { departmentTree } from "@/domain/permissions";
 import { dueFlag, inReview, REVIEW_PERIOD_LABELS, reviewWindow, type ReviewPeriod } from "@/domain/flags";
 import { formatDate } from "@/domain/dates";
+import { formatEffort } from "@/domain/tasks";
+import { SubtaskMark } from "@/components/TaskDialog";
 import { BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, PageHeader, PersonSelect, StatusBadge, deptName, money, personName } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -123,7 +125,7 @@ export default function TasksPage() {
               <Header k="startDate" className="hidden md:table-cell">Start</Header>
               <Header k="dueDate">Due</Header>
               <Header k="status">Status</Header>
-              <Header k="effortHours" className="hidden text-right md:table-cell">Hours</Header>
+              <Header k="effortHours" className="hidden text-right md:table-cell">Effort</Header>
               <Header k="estimatedCost" className="hidden text-right md:table-cell">Cost</Header>
             </TR>
           </THead>
@@ -139,7 +141,8 @@ export default function TasksPage() {
                     </div>
                   </TD>
                   <TD className="max-w-xs font-medium md:min-w-[12rem]">
-                    <Link to={`/projects/${t.projectId}?task=${t.id}`} className="hover:underline">{t.title}</Link>
+                    <Link to={`/projects/${t.projectId}?task=${t.id}`} className="hover:underline">{t.parentTaskId && <SubtaskMark />}{t.title}</Link>
+                    {t.parentTaskId && <div className="whitespace-normal text-xs font-normal text-muted-foreground">Subtask of {data.tasks.find((x) => x.id === t.parentTaskId)?.title}</div>}
                     <div className="whitespace-normal text-xs font-normal text-muted-foreground md:hidden">
                       {[project(t)?.title, personName(data, t.ownerId)].filter(Boolean).join(" · ")}
                     </div>
@@ -151,7 +154,7 @@ export default function TasksPage() {
                   <TD className="hidden whitespace-nowrap md:table-cell">{t.startDate ? formatDate(t.startDate) : ""}</TD>
                   <TD className="whitespace-nowrap"><DateText date={t.dueDate} status={t.status} today={today} /></TD>
                   <TD title={STATUS_LABELS[t.status]}><StatusBadge status={t.status} /></TD>
-                  <TD className="hidden text-right md:table-cell">{t.effortHours || ""}</TD>
+                  <TD className="hidden whitespace-nowrap text-right md:table-cell">{formatEffort(t.effortHours)}</TD>
                   <TD className="hidden text-right md:table-cell">{t.estimatedCost ? money(t.estimatedCost) : ""}</TD>
                 </TR>
               );
