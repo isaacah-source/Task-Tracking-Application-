@@ -2,7 +2,7 @@ import { useMemo, useState, type KeyboardEvent } from "react";
 import type { ID, Status, Task, TaskKind } from "@/domain/types";
 import { STATUS_LABELS, TASK_KIND_LABELS } from "@/domain/types";
 import { checkAssignment } from "@/domain/conflicts";
-import { predecessorIds, successorIds } from "@/domain/dependencies";
+import { durationOf, followsPredecessors, linkedSchedule, predecessorIds, successorIds } from "@/domain/dependencies";
 import { CornerDownRight, Plus, Trash2 } from "lucide-react";
 import { formatDate } from "@/domain/dates";
 import { subtasksOf } from "@/domain/tasks";
@@ -43,20 +43,36 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
   const [shiftDown, setShiftDown] = useState<{ newDue: string } | null>(null);
   const set = <K extends keyof TaskInput>(k: K, val: TaskInput[K]) => setV((x) => ({ ...x, [k]: val }));
 
+  // A task that waits on others starts the day after they are done and runs its estimated days.
+  const selfId = task?.id ?? "__new__";
+  const asTask: Task = {
+    ...v, id: selfId, sourceMeetingId: v.sourceMeetingId ?? null, parentTaskId: v.parentTaskId ?? null,
+    durationDays: v.durationDays ?? 0, completedAt: task?.completedAt ?? null,
+  };
+  const follows = preds.length > 0 && followsPredecessors(v);
+  const schedule = follows
+    ? linkedSchedule(asTask, data.tasks, [
+        ...data.dependencies.filter((d) => d.successorId !== selfId),
+        ...preds.map((p, i) => ({ id: `__d${i}`, predecessorId: p, successorId: selfId })),
+      ])
+    : null;
+  const effective = schedule ? { ...v, ...schedule } : v;
+  const waitTitles = preds.map((p) => `"${data.tasks.find((t) => t.id === p)?.title ?? ""}"`).join(", ");
+
   const candidates = data.tasks
     .filter((t) => t.id !== task?.id && (!task || !successorIds(task.id, data.dependencies).includes(t.id)))
     .sort((a, b) => (a.projectId === projectId ? -1 : 1) - (b.projectId === projectId ? -1 : 1) || a.title.localeCompare(b.title));
   const projectTitle = (id: ID) => data.projects.find((p) => p.id === id)?.title ?? "";
 
   const conflicts = useMemo(() => {
-    if (!v.ownerId || !v.dueDate) return [];
+    if (!effective.ownerId || !effective.dueDate) return [];
     // Leave the task itself out so it does not clash with its own old version.
     const others = task ? data.tasks.filter((t) => t.id !== task.id) : data.tasks;
-    return checkAssignment({ ...v, predecessorIds: preds }, { ...data, tasks: others }, today).filter(
+    return checkAssignment({ ...effective, predecessorIds: preds }, { ...data, tasks: others }, today).filter(
       // An unchanged past due date on an existing task is shown by its Overdue flag already.
       (c) => !(editing && c.message.includes("has already passed") && v.dueDate === task?.dueDate),
     );
-  }, [v, preds, data, today, task, editing]);
+  }, [effective, preds, data, today, task, editing]);
 
   async function save() {
     const ok = await run(async (reason) => {
@@ -136,12 +152,29 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
                 </Field>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Start">
-                  <Input type="date" value={v.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} />
-                </Field>
-                <Field label="Due">
-                  <Input type="date" value={v.dueDate ?? ""} onChange={(e) => set("dueDate", e.target.value || null)} />
-                </Field>
+                {follows ? (
+                  <>
+                    <Field label="Starts" hint={`The day after ${waitTitles} ${preds.length === 1 ? "is" : "are"} done.`}>
+                      <ReadOnlyDate date={schedule?.startDate ?? null} empty="Once that has a due date" />
+                    </Field>
+                    <Field label="Days to complete" hint={schedule ? `Due ${formatDate(schedule.dueDate)}` : "Sets the due date from the start."}>
+                      <Input
+                        type="number" min={0} step={1} inputMode="numeric"
+                        value={durationOf(asTask)}
+                        onChange={(e) => set("durationDays", Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                      />
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    <Field label="Start">
+                      <Input type="date" value={v.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} />
+                    </Field>
+                    <Field label="Due">
+                      <Input type="date" value={v.dueDate ?? ""} onChange={(e) => set("dueDate", e.target.value || null)} />
+                    </Field>
+                  </>
+                )}
                 <Field label="Status">
                   <Select value={v.status} onChange={(e) => set("status", e.target.value as Status)}>
                     {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -156,7 +189,7 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
                   <Input type="number" min={0} step={50} value={v.estimatedCost} onChange={(e) => set("estimatedCost", Number(e.target.value))} />
                 </Field>
               </div>
-              <Field label="Has to wait for" hint="This task cannot start until these are done.">
+              <Field label="Has to wait for" hint={v.kind === "event" ? "This event cannot be set before these are due." : "This task starts the day after these are done, and its dates move with them."}>
                 <div className="max-h-36 overflow-y-auto rounded-md border bg-card p-2">
                   {candidates.length === 0 && <p className="text-sm text-muted-foreground">No other tasks yet.</p>}
                   {candidates.map((t) => (
@@ -185,7 +218,7 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
             {canEdit && (
               <div className="rounded-md border bg-muted/40 p-3">
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conflict check</div>
-                <ConflictList conflicts={conflicts} ready={!!v.ownerId && !!v.dueDate} />
+                <ConflictList conflicts={conflicts} ready={!!effective.ownerId && !!effective.dueDate} />
               </div>
             )}
             <DialogFooter>
@@ -284,4 +317,13 @@ function Subtasks({ task, subtasks, canEdit, onOpenTask }: { task: Task; subtask
 /** Marks a subtask row in task tables. */
 export function SubtaskMark() {
   return <CornerDownRight className="mr-1 inline h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Subtask" />;
+}
+
+/** A calculated date shown where a date field would be. */
+function ReadOnlyDate({ date, empty }: { date: string | null; empty: string }) {
+  return (
+    <div className="flex h-9 items-center rounded-md border border-dashed bg-muted/40 px-3 text-base md:text-sm">
+      {date ? formatDate(date) : <span className="text-muted-foreground">{empty}</span>}
+    </div>
+  );
 }

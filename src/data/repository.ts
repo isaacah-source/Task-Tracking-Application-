@@ -10,9 +10,9 @@ import type {
 import { emptyDataSet, STATUS_LABELS } from "@/domain/types";
 import type { Backend, NewRow } from "./backend";
 import { canDeleteInDepartment, canEditProject, canManageLinesOfEffort, canSeeMeeting, canWrite, isAdmin, wouldLoopReporting } from "@/domain/permissions";
-import { cascadeShift, dependencyProblems, orderingProblems } from "@/domain/dependencies";
+import { cascadeShift, dependencyProblems, linkedSchedule, orderingProblems, predecessorIds as predecessorsOf, successorIds, topoOrder } from "@/domain/dependencies";
 import { completeStage, stagesTriggeredBy, stagesFor } from "@/domain/transitions";
-import { isIsoDate } from "@/domain/dates";
+import { daysBetween, formatShort, isIsoDate } from "@/domain/dates";
 import { roundEffort, subtasksOf } from "@/domain/tasks";
 
 /** A change broke a rule. `problems` are shown to the person as a list. */
@@ -53,13 +53,20 @@ export function meetingOrigin(m: Pick<MeetingNote, "id" | "title" | "date">): st
   return `Created in meeting "${m.title}" on ${m.date} (meeting #${m.id})`;
 }
 
-export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId" | "parentTaskId"> & { sourceMeetingId?: ID | null; parentTaskId?: ID | null };
+export type TaskInput = Omit<Task, "id" | "completedAt" | "sourceMeetingId" | "parentTaskId" | "durationDays"> & {
+  sourceMeetingId?: ID | null; parentTaskId?: ID | null; durationDays?: number;
+};
 export type StageInput = Pick<Stage, "name" | "ownerId" | "departmentId"> & Partial<Pick<Stage, "handoffNote" | "handoffDate" | "handoffTaskId">>;
 
 function stringify(v: unknown): string {
   if (v == null) return "";
   if (Array.isArray(v)) return v.join(", ");
   return String(v);
+}
+
+/** Days to complete: a whole number, never negative. */
+function wholeDays(n: number | undefined): number {
+  return n && Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
 function changedKeys<T extends object>(before: T, patch: Partial<T>): (keyof T & string)[] {
@@ -274,18 +281,27 @@ export class Repository {
     const parentTaskId = input.parentTaskId ?? null;
     // A subtask always lives in its parent's project.
     if (parentTaskId) input = { ...input, projectId: this.checkParent(parentTaskId, null).projectId };
-    input = { ...input, effortHours: roundEffort(input.effortHours) };
+    input = { ...input, effortHours: roundEffort(input.effortHours), durationDays: wholeDays(input.durationDays) };
     const project = this.project(input.projectId);
     this.requireEdit(project);
     if (!input.title.trim()) throw new RuleError(["Give the task a name."]);
-    this.checkDates(input);
     // Check ordering as if the links already existed.
-    const draft: Task = { ...input, id: "__new__", title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId, completedAt: null };
-    const draftDeps = predecessorIds.map((p, i) => ({ id: `__d${i}`, predecessorId: p, successorId: draft.id }));
+    let draft: Task = {
+      ...input, id: "__new__", title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId,
+      durationDays: input.durationDays ?? 0, completedAt: null,
+    };
+    const draftDeps = predecessorIds.map((p, i) => ({ id: `__d${i}`, predecessorId: p, successorId: "__new__" }));
+    // A task that waits on others starts when they are done.
+    const sched = linkedSchedule(draft, this.data.tasks, [...this.data.dependencies, ...draftDeps]);
+    if (sched) {
+      draft = { ...draft, ...sched };
+      input = { ...input, ...sched };
+    }
+    this.checkDates(input);
     const problems = orderingProblems(draft, this.data.tasks, [...this.data.dependencies, ...draftDeps]).map((x) => x.message);
     if (problems.length) throw new RuleError(problems);
     const task = await this.create("tasks", {
-      ...input, title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId,
+      ...input, title: input.title.trim(), sourceMeetingId: input.sourceMeetingId ?? null, parentTaskId, durationDays: input.durationDays ?? 0,
       completedAt: input.status === "done" ? this.nowIso() : null,
     });
     await this.log("task", task.id, task.projectId, "created", "", task.title);
@@ -295,13 +311,26 @@ export class Repository {
   }
 
   /**
-   * Saves task changes. Date changes need `reason`. Status and date changes must respect the
-   * task's dependencies; otherwise this throws RuleError with the reasons.
+   * Saves task changes. Date changes need `reason`, except on a task that waits on others:
+   * its dates follow those tasks and its days-to-complete estimate. Status and date changes
+   * must respect the task's dependencies; otherwise this throws RuleError with the reasons.
+   * Tasks waiting on this one move with it.
    */
   async updateTask(id: ID, patch: Partial<Omit<Task, "id">>, reason = ""): Promise<{ handedOff: Stage[] }> {
     const before = this.task(id);
     this.requireEdit(this.project(before.projectId));
     if (patch.effortHours !== undefined) patch = { ...patch, effortHours: roundEffort(patch.effortHours) };
+    if (patch.durationDays !== undefined) patch = { ...patch, durationDays: wholeDays(patch.durationDays) };
+    const follows = linkedSchedule({ ...before, ...patch }, this.data.tasks, this.data.dependencies);
+    // On a task that starts when others finish, a new due date sets how long it takes.
+    if (follows && patch.dueDate && patch.dueDate !== before.dueDate) {
+      if (patch.dueDate < follows.startDate) {
+        throw new RuleError([`"${before.title}" can only start ${formatShort(follows.startDate)}, after the work it waits on, so it cannot be due before then.`]);
+      }
+      patch = { ...patch, durationDays: daysBetween(follows.startDate, patch.dueDate) };
+    }
+    const sched = linkedSchedule({ ...before, ...patch }, this.data.tasks, this.data.dependencies);
+    if (sched) patch = { ...patch, ...sched };
     if (patch.parentTaskId && patch.parentTaskId !== before.parentTaskId) {
       if (this.checkParent(patch.parentTaskId, id).projectId !== before.projectId) throw new RuleError(["A subtask has to be in the same project as its parent task."]);
     }
@@ -311,7 +340,10 @@ export class Repository {
     const keys = changedKeys(before, patch);
     if (!keys.length) return { handedOff: [] };
     const dateKeys = keys.filter((k) => DATE_FIELDS.has(k));
-    if (dateKeys.length && !reason.trim()) throw new ReasonRequiredError(dateKeys);
+    // Dates that only follow the work this task waits on need no reason; a changed estimate does.
+    const ownChange = !sched || keys.includes("durationDays");
+    if (dateKeys.length && ownChange && !reason.trim()) throw new ReasonRequiredError(dateKeys);
+    const dateReason = ownChange ? reason.trim() : this.followReason(id);
     const next: Task = { ...before, ...patch };
     this.checkDates(next);
     const problems = orderingProblems(next, this.data.tasks, this.data.dependencies).map((x) => x.message);
@@ -322,9 +354,44 @@ export class Repository {
     for (const k of keys) {
       const old = k === "status" ? STATUS_LABELS[before.status] : before[k];
       const nu = k === "status" ? STATUS_LABELS[next.status] : patch[k];
-      await this.log("task", id, before.projectId, k, old, nu, DATE_FIELDS.has(k) ? reason.trim() : "");
+      await this.log("task", id, before.projectId, k, old, nu, DATE_FIELDS.has(k) ? dateReason : "");
     }
+    if (keys.some((k) => k === "status" || DATE_FIELDS.has(k))) await this.reschedule(successorIds(id, this.data.dependencies));
     return { handedOff: "status" in changes ? await this.handOffAfter(this.task(id)) : [] };
+  }
+
+  /**
+   * Re-dates tasks that start when the work they wait on is done, from `ids` downstream.
+   * Tasks already under way keep their dates. Returns how many moved.
+   */
+  private async reschedule(ids: ID[]): Promise<number> {
+    const deps = this.data.dependencies;
+    const reach = new Set<ID>();
+    const stack = [...ids];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (reach.has(id)) continue;
+      reach.add(id);
+      stack.push(...successorIds(id, deps));
+    }
+    let moved = 0;
+    for (const t of topoOrder(this.data.tasks.filter((x) => reach.has(x.id)), deps)) {
+      const cur = this.task(t.id);
+      const s = linkedSchedule(cur, this.data.tasks, deps);
+      if (!s || (s.startDate === cur.startDate && s.dueDate === cur.dueDate)) continue;
+      await this.update("tasks", cur.id, s);
+      const why = this.followReason(cur.id);
+      if (cur.startDate !== s.startDate) await this.log("task", cur.id, cur.projectId, "startDate", cur.startDate, s.startDate, why);
+      if (cur.dueDate !== s.dueDate) await this.log("task", cur.id, cur.projectId, "dueDate", cur.dueDate, s.dueDate, why);
+      moved++;
+    }
+    return moved;
+  }
+
+  /** The history note for dates that follow the tasks a task waits on. */
+  private followReason(id: ID): string {
+    const titles = predecessorsOf(id, this.data.dependencies).map((p) => `"${this.data.tasks.find((t) => t.id === p)?.title ?? p}"`);
+    return `Scheduled to start when ${titles.join(", ")} ${titles.length === 1 ? "is" : "are"} done`;
   }
 
   /**
@@ -363,8 +430,10 @@ export class Repository {
       dependencies: this.data.dependencies.filter((x) => ids.has(x.predecessorId) || ids.has(x.successorId)),
       memberships: this.data.memberships.filter((x) => x.targetType === "task" && ids.has(x.targetId)),
     });
+    const waiting = [...ids].flatMap((x) => successorIds(x, this.data.dependencies)).filter((x) => !ids.has(x));
     for (const s of subtasks) await this.removeTaskRecords(s.id);
     await this.removeTaskRecords(id);
+    await this.reschedule(waiting);
   }
 
   /** The parent for a new or moved subtask. Subtasks go one level deep only. */
@@ -396,6 +465,7 @@ export class Repository {
     if (problems.length) throw new RuleError(problems);
     const d = await this.create("dependencies", { predecessorId, successorId });
     await this.log("dependency", d.id, suc.projectId, "added", "", `"${pre.title}" before "${suc.title}"`);
+    await this.reschedule([successorId]);
   }
 
   async removeDependency(id: ID): Promise<void> {
@@ -406,6 +476,7 @@ export class Repository {
     this.requireDelete(project);
     await this.logDeletion("dependency", id, `Link: "${this.task(d.predecessorId).title}" before "${suc.title}"`, project.id, project.departmentId, d);
     await this.remove("dependencies", id);
+    await this.reschedule([d.successorId]);
   }
 
   // ---- People on projects and events ----

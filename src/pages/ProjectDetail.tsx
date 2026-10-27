@@ -147,7 +147,7 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
       ) : (
         <Table>
           <THead>
-            <TR><TH>Task</TH><TH className="hidden md:table-cell">Owner</TH><TH>Due</TH><TH className="hidden md:table-cell">Waits on</TH><TH>Status</TH><TH></TH></TR>
+            <TR><TH>Task</TH><TH className="hidden md:table-cell">Owner</TH><TH>Due</TH><TH className="hidden md:table-cell">Waits on</TH><TH>Status</TH><TH>Check to complete</TH></TR>
           </THead>
           <TBody>
             {tasks.map(({ task: t, depth }) => {

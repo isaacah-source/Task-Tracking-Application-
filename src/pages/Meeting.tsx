@@ -6,7 +6,8 @@ import type { ID, MeetingNote, MeetingType } from "@/domain/types";
 import { MEETING_TYPE_LABELS } from "@/domain/types";
 import { checkAssignment, suggestOwners, type AssignmentProposal } from "@/domain/conflicts";
 import { canWrite, isAdmin } from "@/domain/permissions";
-import { formatDate, formatShort } from "@/domain/dates";
+import { addDays, formatDate, formatShort } from "@/domain/dates";
+import { startAfterPredecessors } from "@/domain/dependencies";
 import { recentWithNotes, upcomingTranscriptions } from "@/domain/meetings";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
@@ -178,10 +179,18 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
   const blank: AssignmentProposal = { title: "", ownerId: null, projectId: null, startDate: null, dueDate: null, effortHours: 0, estimatedCost: 0, predecessorIds: [] };
   const [a, setA] = useState<AssignmentProposal>(blank);
   const set = <K extends keyof AssignmentProposal>(k: K, v: AssignmentProposal[K]) => setA((x) => ({ ...x, [k]: v }));
-  const conflicts = useMemo(() => (a.ownerId && a.dueDate ? checkAssignment(a, data, today) : []), [a, data, today]);
+  // A task that waits on another starts the day after it is done and runs `days` days.
+  const [days, setDays] = useState(1);
+  const waits = a.predecessorIds.length > 0;
+  const proposal = useMemo(() => {
+    if (!a.predecessorIds.length) return a;
+    const start = startAfterPredecessors("__new__", data.tasks, a.predecessorIds.map((p, i) => ({ id: `__d${i}`, predecessorId: p, successorId: "__new__" })));
+    return { ...a, startDate: start, dueDate: start ? addDays(start, days) : null };
+  }, [a, days, data.tasks]);
+  const conflicts = useMemo(() => (proposal.ownerId && proposal.dueDate ? checkAssignment(proposal, data, today) : []), [proposal, data, today]);
   const suggestions = useMemo(
-    () => (conflicts.some((c) => c.kind === "resourcing" && c.severity === "conflict") ? suggestOwners(a, data, today) : []),
-    [conflicts, a, data, today],
+    () => (conflicts.some((c) => c.kind === "resourcing" && c.severity === "conflict") ? suggestOwners(proposal, data, today) : []),
+    [conflicts, proposal, data, today],
   );
   const [mode, setMode] = useState<"task" | "project">("task");
   // Adds a line to the typed notes, which save on their own a moment later.
@@ -190,23 +199,23 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
   const origin = meetingOrigin(meeting);
   const newProjects = data.projects.filter((p) => data.audit.some((x) => x.entityType === "project" && x.entityId === p.id && x.field === "created" && x.reason === origin));
   const projectTasks = a.projectId ? data.tasks.filter((t) => t.projectId === a.projectId && t.status !== "done") : [];
-  const ready = !!(a.title.trim() && a.ownerId && a.projectId && a.dueDate);
+  const ready = !!(a.title.trim() && a.ownerId && a.projectId && proposal.dueDate);
   const hasConflict = conflicts.some((c) => c.severity === "conflict");
 
   async function assign() {
     const t = await run(() =>
       repo.createTask(
         {
-          projectId: a.projectId!, title: a.title, kind: "task", ownerId: a.ownerId, startDate: a.startDate, dueDate: a.dueDate,
+          projectId: a.projectId!, title: a.title, kind: "task", ownerId: a.ownerId, startDate: proposal.startDate, dueDate: proposal.dueDate,
           status: "notStarted", effortHours: a.effortHours, estimatedCost: a.estimatedCost, notes: `Assigned in ${meeting.title} (${formatDate(meeting.date)})`,
-          sourceMeetingId: meeting.id,
+          sourceMeetingId: meeting.id, durationDays: waits ? days : 0,
         },
         a.predecessorIds,
       ),
     );
     if (t) {
       toast(`Task added for ${personName(data, a.ownerId)}`);
-      addLine(`→ ${a.title} (${personName(data, a.ownerId)}, due ${formatShort(a.dueDate)})`);
+      addLine(`→ ${a.title} (${personName(data, a.ownerId)}, due ${formatShort(t.dueDate)})`);
       setA({ ...blank, projectId: a.projectId });
     }
   }
@@ -301,12 +310,6 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
                       </Select>
                     </Field>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Start"><Input type="date" value={a.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} /></Field>
-                    <Field label="Due"><Input type="date" value={a.dueDate ?? ""} onChange={(e) => set("dueDate", e.target.value || null)} /></Field>
-                    <Field label="Effort"><EffortInput value={a.effortHours} onChange={(h) => set("effortHours", h)} /></Field>
-                    <Field label="Cost ($)"><Input type="number" min={0} step={50} value={a.estimatedCost} onChange={(e) => set("estimatedCost", Number(e.target.value))} /></Field>
-                  </div>
                   {projectTasks.length > 0 && (
                     <Field label="Has to wait for (optional)">
                       <Select value={a.predecessorIds[0] ?? ""} onChange={(e) => set("predecessorIds", e.target.value ? [e.target.value] : [])}>
@@ -315,8 +318,29 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
                       </Select>
                     </Field>
                   )}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {waits ? (
+                      <>
+                        <Field label="Starts" hint="The day after the task it waits on is done.">
+                          <div className="flex h-9 items-center rounded-md border border-dashed bg-muted/40 px-3 text-base md:text-sm">
+                            {proposal.startDate ? formatDate(proposal.startDate) : <span className="text-muted-foreground">Once that task has a due date</span>}
+                          </div>
+                        </Field>
+                        <Field label="Days to complete" hint={proposal.dueDate ? `Due ${formatDate(proposal.dueDate)}` : undefined}>
+                          <Input type="number" min={0} step={1} inputMode="numeric" value={days} onChange={(e) => setDays(Math.max(0, Math.round(Number(e.target.value) || 0)))} />
+                        </Field>
+                      </>
+                    ) : (
+                      <>
+                        <Field label="Start"><Input type="date" value={a.startDate ?? ""} onChange={(e) => set("startDate", e.target.value || null)} /></Field>
+                        <Field label="Due"><Input type="date" value={a.dueDate ?? ""} onChange={(e) => set("dueDate", e.target.value || null)} /></Field>
+                      </>
+                    )}
+                    <Field label="Effort"><EffortInput value={a.effortHours} onChange={(h) => set("effortHours", h)} /></Field>
+                    <Field label="Cost ($)"><Input type="number" min={0} step={50} value={a.estimatedCost} onChange={(e) => set("estimatedCost", Number(e.target.value))} /></Field>
+                  </div>
                   <div className="rounded-md border bg-muted/40 p-3">
-                    <ConflictList conflicts={conflicts} ready={!!a.ownerId && !!a.dueDate} />
+                    <ConflictList conflicts={conflicts} ready={!!proposal.ownerId && !!proposal.dueDate} />
                     {suggestions.length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                         <span className="text-muted-foreground">People with room:</span>

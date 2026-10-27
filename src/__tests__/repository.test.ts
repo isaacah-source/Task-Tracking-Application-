@@ -3,6 +3,7 @@ import { MemoryBackend } from "@/data/memoryBackend";
 import { PermissionError, ReasonRequiredError, Repository, RuleError, meetingOrigin, type TaskInput } from "@/data/repository";
 import { buildSeed, STANDARD_DEPARTMENTS, STANDARD_OUTPUT_TYPES } from "@/data/seed";
 import { emptyDataSet, type DataSet, type Person } from "@/domain/types";
+import { addDays, daysBetween } from "@/domain/dates";
 
 const TODAY = "2026-10-19";
 const NOW = () => new Date("2026-10-19T14:00:00Z");
@@ -140,8 +141,45 @@ describe("tasks and dependencies", () => {
   });
 
   it("refuses dates that break the order", async () => {
-    // Copyedit (5) may not run past the milestone (6) that waits on it.
-    await expect(repo.updateTask("5", { dueDate: "2026-12-30" }, "late")).rejects.toBeInstanceOf(RuleError);
+    // Draft sections 1-3 (2) is under way, so the literature review (1) it waited on cannot now end after it started.
+    await expect(repo.updateTask("1", { dueDate: "2026-10-30" }, "late")).rejects.toBeInstanceOf(RuleError);
+  });
+
+  it("moves work that has not started when the task it waits on moves", async () => {
+    // Copyedit (5) waits on External review (4); the milestone (6) waits on copyedit.
+    const before = repo.task("5");
+    await repo.updateTask("4", { dueDate: "2026-11-10" }, "Reviewer needs more time");
+    expect(repo.task("5").startDate).toBe("2026-11-11");
+    expect(repo.task("5").dueDate).toBe(addDays("2026-11-11", daysBetween(before.startDate!, before.dueDate!)));
+    expect(repo.task("6").startDate).toBe(addDays(repo.task("5").dueDate!, 1));
+    expect(repo.data.audit.some((a) => a.entityId === "5" && a.reason === 'Scheduled to start when "External review" is done')).toBe(true);
+  });
+
+  it("starts the next task the day after the one it waits on is marked done", async () => {
+    // Recruit players (11) waits on Scenario design (9).
+    await repo.updateTask("9", { status: "done" });
+    expect(repo.task("11").startDate).toBe("2026-10-20");
+  });
+
+  it("keeps an event on its date", async () => {
+    // The supporters dinner (17) waits on the final headcount (16) but stays put.
+    const { repo } = await repoAs("Ike Harris");
+    const dinner = repo.task("17").startDate;
+    await repo.updateTask("16", { status: "inProgress" });
+    await repo.updateTask("16", { status: "done" });
+    expect(repo.task("17").startDate).toBe(dinner);
+    await expect(repo.updateTask("16", { dueDate: addDays(dinner!, 2) }, "late")).rejects.toBeInstanceOf(RuleError);
+  });
+
+  it("sets a waiting task's length from a new due date, with a reason", async () => {
+    const start = repo.task("5").startDate!;
+    await expect(repo.updateTask("5", { dueDate: addDays(start, 3) })).rejects.toBeInstanceOf(ReasonRequiredError);
+    await repo.updateTask("5", { dueDate: addDays(start, 3) }, "Shorter edit");
+    expect(repo.task("5")).toMatchObject({ startDate: start, dueDate: addDays(start, 3), durationDays: 3 });
+    await expect(repo.updateTask("5", { dueDate: addDays(start, -1) }, "x")).rejects.toBeInstanceOf(RuleError);
+    // A hand-typed start date is ignored: the start follows the review.
+    await repo.updateTask("5", { startDate: "2027-01-01" });
+    expect(repo.task("5").startDate).toBe(start);
   });
 
   it("shifts downstream work with one reason", async () => {
@@ -163,13 +201,13 @@ describe("tasks and dependencies", () => {
     expect(repo.data.dependencies.some((d) => d.predecessorId === "6" && d.successorId === t.id)).toBe(true);
   });
 
-  it("checks ordering when a task is created with predecessors", async () => {
-    await expect(
-      repo.createTask({
-        projectId: "1", title: "Too early", kind: "task", ownerId: "3", startDate: TODAY, dueDate: TODAY,
-        status: "notStarted", effortHours: 1, estimatedCost: 0, notes: "",
-      }, ["5"]),
-    ).rejects.toBeInstanceOf(RuleError);
+  it("starts a new task when the task it waits on is done", async () => {
+    const t = await repo.createTask({
+      projectId: "1", title: "Proofread", kind: "task", ownerId: "3", startDate: TODAY, dueDate: TODAY, durationDays: 4,
+      status: "notStarted", effortHours: 1, estimatedCost: 0, notes: "",
+    }, ["5"]);
+    const start = addDays(repo.task("5").dueDate!, 1);
+    expect(t).toMatchObject({ startDate: start, dueDate: addDays(start, 4), durationDays: 4 });
   });
 
   it("removes a task's links when it is deleted", async () => {
@@ -231,8 +269,9 @@ describe("deleting", () => {
     const project = repo.data.deletions.at(-1)!;
     expect(project.summary).toBe('Project "Frontier AI crisis wargame" with 4 tasks');
     expect(JSON.parse(project.snapshot).tasks).toHaveLength(4);
-    // Deletions stay out of the audit log that everyone can read.
-    expect(repo.data.audit.length).toBe(auditBefore);
+    // Deletions stay out of the audit log that everyone can read. (Work that waited on a
+    // deleted task can be re-dated, which is logged as a date change.)
+    expect(repo.data.audit.filter((a) => !a.reason.startsWith("Scheduled to start")).length).toBe(auditBefore);
   });
 
   it("writes the log entry before deleting, so a failed log stops the deletion", async () => {
