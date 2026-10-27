@@ -104,7 +104,7 @@ export function buildSeed(today: string): DataSet {
 
   const task = (t: Partial<Task> & Pick<Task, "id" | "projectId" | "title">): Task => ({
     kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
-    effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...t,
+    effortHours: 0, durationDays: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...t,
   });
 
   data.tasks = [

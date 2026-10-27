@@ -86,7 +86,7 @@ export const SCHEMA: { [K in TableName]: ListDef<K> } = {
     titleField: "title",
     columns: {
       projectId: "ref", kind: "text", ownerId: "ref", startDate: "date", dueDate: "date",
-      status: "text", effortHours: "number", estimatedCost: "number", notes: "note", sourceMeetingId: "ref",
+      status: "text", effortHours: "number", durationDays: "number", estimatedCost: "number", notes: "note", sourceMeetingId: "ref",
       parentTaskId: "ref", completedAt: "stamp",
     },
   }),

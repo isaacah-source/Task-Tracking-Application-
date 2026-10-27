@@ -132,6 +132,12 @@ export interface Task {
   status: Status;
   /** Estimated hours of effort. */
   effortHours: number;
+  /**
+   * Calendar days from start to due. A task that waits on other tasks starts the day after
+   * they finish and is due this many days later. 0 means not set (the gap between the
+   * task's own dates is used).
+   */
+  durationDays: number;
   /** Expected cost in dollars, counted against the project budget while the task is open. */
   estimatedCost: number;
   notes: string;

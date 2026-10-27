@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Dependency, Task } from "@/domain/types";
 import {
-  blockedTaskIds, blockers, cascadeShift, dependencyProblems, earliestStart, isBlocked, orderingProblems, topoOrder, wouldCreateCycle,
+  blockedTaskIds, blockers, cascadeShift, dependencyProblems, durationOf, earliestStart, isBlocked, linkedSchedule, orderingProblems, startAfterPredecessors,
+  topoOrder, wouldCreateCycle,
 } from "@/domain/dependencies";
 
 const t = (id: string, over: Partial<Task> = {}): Task => ({
   id, projectId: "p", title: `T${id}`, kind: "task", ownerId: null, startDate: null, dueDate: null,
-  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...over,
+  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, durationDays: 0, completedAt: null, ...over,
 });
 const dep = (p: string, s: string, id = `${p}-${s}`): Dependency => ({ id, predecessorId: p, successorId: s });
 
@@ -47,9 +48,14 @@ describe("ordering rules", () => {
     expect(p).toHaveLength(1);
     expect(p[0].message).toMatch(/before "Ta" is due/);
   });
-  it("refuses moving a predecessor past its successor's start", () => {
-    const p = orderingProblems({ ...a, dueDate: "2026-01-15" }, [a, b], deps);
-    expect(p[0].message).toMatch(/after "Tb" starts/);
+  it("refuses moving a predecessor past the start of an event or work under way", () => {
+    for (const s of [{ ...b, kind: "event" as const }, { ...b, status: "inProgress" as const }]) {
+      const p = orderingProblems({ ...a, dueDate: "2026-01-15" }, [a, s], deps);
+      expect(p[0].message).toMatch(/after "Tb" starts/);
+    }
+  });
+  it("lets a successor that has not started move instead", () => {
+    expect(orderingProblems({ ...a, dueDate: "2026-01-15" }, [a, b], deps)).toEqual([]);
   });
   it("refuses starting work while a predecessor is open", () => {
     const p = orderingProblems({ ...b, status: "inProgress" }, [a, b], deps);
@@ -64,11 +70,35 @@ describe("ordering rules", () => {
   });
 });
 
+describe("linked schedule", () => {
+  const a = t("a", { startDate: "2026-03-01", dueDate: "2026-03-05" });
+  it("starts the day after the last predecessor is due, and runs the estimated days", () => {
+    const c = t("c", { dueDate: "2026-03-08" });
+    const b = t("b", { durationDays: 3 });
+    expect(linkedSchedule(b, [a, b, c], [dep("a", "b"), dep("c", "b")])).toEqual({ startDate: "2026-03-09", dueDate: "2026-03-12" });
+  });
+  it("uses the day a predecessor was marked done", () => {
+    const done = { ...a, status: "done" as const, completedAt: "2026-03-02T15:00:00.000Z" };
+    expect(startAfterPredecessors("b", [done], [dep("a", "b")])).toBe("2026-03-03");
+  });
+  it("keeps the gap between a task's own dates when it has no estimate", () => {
+    const b = t("b", { startDate: "2026-04-01", dueDate: "2026-04-06" });
+    expect(durationOf(b)).toBe(5);
+    expect(linkedSchedule(b, [a, b], [dep("a", "b")])).toEqual({ startDate: "2026-03-06", dueDate: "2026-03-11" });
+  });
+  it("leaves events, work under way, and undated predecessors alone", () => {
+    expect(linkedSchedule(t("b", { kind: "event" }), [a], [dep("a", "b")])).toBeNull();
+    expect(linkedSchedule(t("b", { status: "inProgress" }), [a], [dep("a", "b")])).toBeNull();
+    expect(linkedSchedule(t("b"), [t("a")], [dep("a", "b")])).toBeNull();
+    expect(linkedSchedule(t("b"), [a], [])).toBeNull();
+  });
+});
+
 describe("new links", () => {
-  it("rejects duplicates, loops, and bad dates", () => {
+  it("rejects duplicates and loops, and allows any dates (the successor moves)", () => {
     const a = t("a", { dueDate: "2026-02-10" });
     const b = t("b", { startDate: "2026-02-01" });
-    expect(dependencyProblems(a, b, [])).toEqual([expect.stringMatching(/before "Ta" is due/)]);
+    expect(dependencyProblems(a, b, [])).toEqual([]);
     expect(dependencyProblems(a, t("c"), [dep("a", "c")])).toContain("These tasks are already linked.");
     expect(dependencyProblems(t("c"), a, [dep("a", "c")])[0]).toMatch(/loop/);
   });

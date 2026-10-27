@@ -14,7 +14,7 @@ const project = (over: Partial<Project> = {}): Project => ({
 });
 const task = (id: string, over: Partial<Task> = {}): Task => ({
   id, projectId: "pr", title: `T${id}`, kind: "task", ownerId: "1", startDate: null, dueDate: null,
-  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...over,
+  status: "notStarted", effortHours: 0, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, durationDays: 0, completedAt: null, ...over,
 });
 const proposal = (over: Partial<AssignmentProposal> = {}): AssignmentProposal => ({
   title: "New", ownerId: "1", projectId: "pr", startDate: TODAY, dueDate: "2026-10-23", effortHours: 0, estimatedCost: 0, predecessorIds: [], ...over,

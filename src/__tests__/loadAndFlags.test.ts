@@ -9,7 +9,7 @@ const TODAY = "2026-10-19"; // Monday
 
 const task = (over: Partial<Task> = {}): Task => ({
   id: "t", projectId: "p", title: "T", kind: "task", ownerId: "1", startDate: null, dueDate: null,
-  status: "notStarted", effortHours: 10, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, completedAt: null, ...over,
+  status: "notStarted", effortHours: 10, estimatedCost: 0, notes: "", sourceMeetingId: null, parentTaskId: null, durationDays: 0, completedAt: null, ...over,
 });
 
 describe("dates", () => {

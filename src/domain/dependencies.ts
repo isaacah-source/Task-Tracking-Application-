@@ -3,7 +3,7 @@
 // tasks are blocked right now, and do a task's dates respect its links.
 
 import type { Dependency, ID, Task } from "./types";
-import { addDays, formatShort } from "./dates";
+import { addDays, daysBetween, formatShort } from "./dates";
 
 export function predecessorIds(taskId: ID, deps: Dependency[]): ID[] {
   return deps.filter((d) => d.successorId === taskId).map((d) => d.predecessorId);
@@ -86,6 +86,53 @@ export function earliestStart(taskId: ID, tasks: Task[], deps: Dependency[]): st
   return latest;
 }
 
+/** When a task finished, or is due to: the day it was marked done, else its due date. */
+export function finishDate(t: Task): string | null {
+  if (t.status === "done" && t.completedAt) return t.completedAt.slice(0, 10);
+  return t.dueDate;
+}
+
+/**
+ * The day a task can start once the tasks it waits on are done: the day after the last of
+ * them finishes (or is due, while still open). Null when it waits on nothing, or on a task
+ * that has no due date yet.
+ */
+export function startAfterPredecessors(taskId: ID, tasks: Task[], deps: Dependency[]): string | null {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const preds = predecessorIds(taskId, deps).map((id) => byId.get(id)).filter((t): t is Task => !!t);
+  if (!preds.length) return null;
+  let latest: string | null = null;
+  for (const p of preds) {
+    const f = finishDate(p);
+    if (!f) return null;
+    if (!latest || f > latest) latest = f;
+  }
+  return addDays(latest!, 1);
+}
+
+/** Days from start to due: the task's estimate, or the gap between its own dates. */
+export function durationOf(t: Pick<Task, "durationDays" | "startDate" | "dueDate">): number {
+  if (t.durationDays > 0) return t.durationDays;
+  return t.startDate && t.dueDate ? Math.max(0, daysBetween(t.startDate, t.dueDate)) : 0;
+}
+
+/**
+ * Dates for a task that starts when the work it waits on is done. Null when the task keeps
+ * its own dates: it waits on nothing, a task it waits on has no date, it is already under
+ * way or finished, or it is an event (events happen on their set date).
+ */
+export function linkedSchedule(task: Task, tasks: Task[], deps: Dependency[]): { startDate: string; dueDate: string } | null {
+  if (!followsPredecessors(task)) return null;
+  const start = startAfterPredecessors(task.id, tasks, deps);
+  if (!start) return null;
+  return { startDate: start, dueDate: addDays(start, durationOf(task)) };
+}
+
+/** True when a task's dates follow the tasks it waits on rather than being set by hand. */
+export function followsPredecessors(task: Pick<Task, "status" | "kind">): boolean {
+  return task.kind !== "event" && (task.status === "notStarted" || task.status === "onHold");
+}
+
 export interface OrderingProblem {
   taskId: ID;
   message: string;
@@ -97,8 +144,9 @@ export interface OrderingProblem {
  *
  * Rules:
  * - A task cannot move to In progress or Done while a predecessor is still open.
- * - A task cannot start before a predecessor's due date.
- * - A task cannot be due after a successor's start date.
+ * - A task cannot start before an open predecessor's due date.
+ * - A task cannot be due after the start of a successor that is already under way, or of
+ *   an event. Other successors simply move (see linkedSchedule).
  */
 export function orderingProblems(next: Task, tasks: Task[], deps: Dependency[]): OrderingProblem[] {
   const others = tasks.filter((t) => t.id !== next.id);
@@ -119,7 +167,7 @@ export function orderingProblems(next: Task, tasks: Task[], deps: Dependency[]):
   const start = next.startDate ?? next.dueDate;
   for (const pid of predecessorIds(next.id, deps)) {
     const p = byId.get(pid);
-    if (p?.dueDate && start && start < p.dueDate) {
+    if (p && p.status !== "done" && p.dueDate && start && start < p.dueDate) {
       problems.push({
         taskId: next.id,
         message: `"${next.title}" starts ${formatShort(start)}, before "${p.title}" is due (${formatShort(p.dueDate)}).`,
@@ -129,7 +177,8 @@ export function orderingProblems(next: Task, tasks: Task[], deps: Dependency[]):
 
   for (const sid of successorIds(next.id, deps)) {
     const s = byId.get(sid);
-    const sStart = s?.startDate ?? s?.dueDate;
+    if (!s || followsPredecessors(s)) continue;
+    const sStart = s.startDate ?? s.dueDate;
     if (s && sStart && next.dueDate && next.dueDate > sStart) {
       problems.push({
         taskId: next.id,
@@ -148,10 +197,6 @@ export function dependencyProblems(predecessor: Task, successor: Task, deps: Dep
   }
   if (wouldCreateCycle(deps, predecessor.id, successor.id)) {
     problems.push(`That would make "${successor.title}" wait on itself through a loop of links.`);
-  }
-  const sStart = successor.startDate ?? successor.dueDate;
-  if (predecessor.dueDate && sStart && sStart < predecessor.dueDate) {
-    problems.push(`"${successor.title}" starts ${formatShort(sStart)}, before "${predecessor.title}" is due (${formatShort(predecessor.dueDate)}). Change the dates first.`);
   }
   if (successor.status !== "notStarted" && successor.status !== "onHold" && predecessor.status !== "done") {
     problems.push(`"${successor.title}" is already under way, so it cannot wait on an unfinished task.`);

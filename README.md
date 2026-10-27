@@ -26,10 +26,14 @@ loads sample departments, people, and projects. Nothing is saved.
   in their own right: they show on the Task list, My work, the timeline, and workload, and
   they can wait on other tasks. They stay in their parent's project, go one level deep, and
   are deleted with their parent. The project's Tasks tab lists them under their parent.
-- **Task order.** A task can wait on other tasks, in any project. The app will not let a task
-  start, or move its dates, ahead of the work it waits on. It marks waiting tasks as
-  **Blocked** everywhere. Moving a due date later can push all downstream work by the same
-  amount, under one reason.
+- **Task order.** A task can wait on other tasks, in any project. Instead of its own start
+  date, a waiting task starts the day after the work it waits on is done (or due, while that
+  work is still open), and you give it **Days to complete**, which sets its due date. When the
+  earlier work moves or is marked done, every task waiting on it moves with it, and the
+  History tab notes why. Typing a new due date on a waiting task changes its days to complete.
+  Events keep their set date; the app will not let the work before an event run past it. Tasks
+  already under way keep their dates. Waiting tasks show as **Blocked** everywhere.
+- **Check to complete.** On a project's Tasks tab, the Done button marks a task complete.
 - **Date changes need a reason.** Changing a project or task start or due date asks why. The
   reason, the old and new dates, and the person's name and email go into the History tab
   and the audit log for good.
@@ -167,8 +171,8 @@ changes nothing else. Then add the lines of effort and choose one on each projec
 Lines of effort page links to the projects that still need one).
 
 **New columns on existing lists** (for example the Teams columns on FSI Meeting Notes, the
-handoff date and milestone on FSI Project Stages, or the Parent Task column on FSI Tasks that
-subtasks need): an admin
+handoff date and milestone on FSI Project Stages, or the Parent Task and Duration Days columns on FSI
+Tasks that subtasks and days-to-complete need): an admin
 opens **Admin**, **Connections**. When a list is missing columns, a yellow box lists them with
 an **Update SharePoint lists** button. Updating adds the columns and keeps all data.
 
