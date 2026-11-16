@@ -14,6 +14,7 @@ import { BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, PageHeader, P
 import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { CompleteButton } from "@/components/CompleteButton";
 
 type SortKey = "title" | "project" | "department" | "owner" | "kind" | "startDate" | "dueDate" | "status" | "effortHours" | "estimatedCost" | "flag";
 
@@ -153,7 +154,12 @@ export default function TasksPage() {
                   <TD className="hidden md:table-cell">{TASK_KIND_LABELS[t.kind]}</TD>
                   <TD className="hidden whitespace-nowrap md:table-cell">{t.startDate ? formatDate(t.startDate) : ""}</TD>
                   <TD className="whitespace-nowrap"><DateText date={t.dueDate} status={t.status} today={today} /></TD>
-                  <TD title={STATUS_LABELS[t.status]}><StatusBadge status={t.status} /></TD>
+                  <TD title={STATUS_LABELS[t.status]}>
+                    <div className="flex flex-col items-start gap-1.5">
+                      <StatusBadge status={t.status} />
+                      <CompleteButton task={t} />
+                    </div>
+                  </TD>
                   <TD className="hidden whitespace-nowrap text-right md:table-cell">{formatEffort(t.effortHours)}</TD>
                   <TD className="hidden text-right md:table-cell">{t.estimatedCost ? money(t.estimatedCost) : ""}</TD>
                 </TR>

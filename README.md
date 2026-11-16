@@ -33,7 +33,12 @@ loads sample departments, people, and projects. Nothing is saved.
   History tab notes why. Typing a new due date on a waiting task changes its days to complete.
   Events keep their set date; the app will not let the work before an event run past it. Tasks
   already under way keep their dates. Waiting tasks show as **Blocked** everywhere.
-- **Check to complete.** On a project's Tasks tab, the Done button marks a task complete.
+- **Complete button.** Every open task has a **Complete** button wherever it is listed: My
+  work, the Task list, a project's Tasks tab, the task window, Workload, meeting notes, and
+  the Meeting display. One click marks it done, with the same rules as changing its status:
+  it is greyed out while the task waits on unfinished work, it can trigger a stage handoff,
+  and work waiting on the task moves to start the next day. Only people who can change the
+  project see it. To undo, open the task and set its status back.
 - **Date changes need a reason.** Changing a project or task start or due date asks why. The
   reason, the old and new dates, and the person's name and email go into the History tab
   and the audit log for good.

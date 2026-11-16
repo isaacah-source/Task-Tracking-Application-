@@ -8,6 +8,7 @@ import { DepartmentSelect, Empty, PageHeader, deptName } from "@/components/comm
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CompleteButton } from "@/components/CompleteButton";
 
 const LEVEL: Record<LoadLevel, { label: string; bar: string; badge: "success" | "info" | "warning" | "danger" }> = {
   light: { label: "Light", bar: "bg-emerald-500", badge: "success" },
@@ -87,9 +88,12 @@ function PersonCard({ l }: { l: PersonLoad }) {
           {l.upcoming.length === 0 && l.overdue.length === 0 ? <p className="text-sm text-muted-foreground">Nothing due.</p> : (
             <ul className="grid gap-1 text-sm">
               {[...l.overdue, ...l.upcoming].slice(0, 6).map((t) => (
-                <li key={t.id} className="flex justify-between gap-2">
+                <li key={t.id} className="flex items-center justify-between gap-2">
                   <Link to={`/projects/${t.projectId}?task=${t.id}`} className="truncate hover:underline" title={projectTitle(t.projectId)}>{t.title}</Link>
-                  <span className={cn("shrink-0 text-xs", t.dueDate! < today ? "font-semibold text-red-700" : "text-muted-foreground")}>{formatShort(t.dueDate)}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className={cn("text-xs", t.dueDate! < today ? "font-semibold text-red-700" : "text-muted-foreground")}>{formatShort(t.dueDate)}</span>
+                    <CompleteButton task={t} iconOnly />
+                  </span>
                 </li>
               ))}
             </ul>

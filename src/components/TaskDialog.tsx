@@ -8,6 +8,7 @@ import { formatDate } from "@/domain/dates";
 import { subtasksOf } from "@/domain/tasks";
 import { RuleError, type TaskInput } from "@/data/repository";
 import { useStore } from "@/data/store";
+import { CompleteButton } from "./CompleteButton";
 import { ConflictList } from "./ConflictList";
 import { EffortInput } from "./EffortInput";
 import { Field, PersonSelect, handoffMessage, personName } from "./common";
@@ -236,6 +237,7 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
                   <Trash2 />Delete task
                 </Button>
               )}
+              {editing && <CompleteButton task={task!} onDone={onClose} className="h-9" />}
               <Button type="button" variant="outline" onClick={onClose}>{canEdit ? "Cancel" : "Close"}</Button>
               {canEdit && <Button type="submit">{editing ? "Save" : "Add task"}</Button>}
             </DialogFooter>
