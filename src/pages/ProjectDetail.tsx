@@ -10,7 +10,7 @@ import { activeStage, stagesFor } from "@/domain/transitions";
 import { formatDate } from "@/domain/dates";
 import { fieldLabel } from "@/data/repository";
 import {
-  BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, handoffMessage, PersonSelect, Stat, StatusBadge, deptName, money, personName,
+  BlockedBadge, DateText, DepartmentSelect, DueFlag, Empty, Field, PageHeader, PersonSelect, Stat, StatusBadge, deptName, money, personName,
 } from "@/components/common";
 import { ProjectForm } from "@/components/ProjectForm";
 import { SubtaskMark, TaskDialog } from "@/components/TaskDialog";
@@ -24,6 +24,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { groupForType, type ExternalContact, type ExternalOrganization } from "@/integrations/relationships/adapter";
 import { involvementFor, pushNow, syncRelationships } from "@/integrations/relationships/sync";
+import { CompleteButton } from "@/components/CompleteButton";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -131,7 +132,7 @@ export default function ProjectDetailPage() {
 }
 
 function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boolean; onOpen: (t: Task | null) => void }) {
-  const { data, today, run, repo, toast } = useStore();
+  const { data, today } = useStore();
   const tasks = withSubtasks(topoOrder(data.tasks.filter((t) => t.projectId === project.id), data.dependencies));
   const blocked = blockedTaskIds(data.tasks, data.dependencies);
   const title = (id: ID) => data.tasks.find((t) => t.id === id)?.title ?? "";
@@ -181,14 +182,7 @@ function TasksTab({ project, canEdit, onOpen }: { project: Project; canEdit: boo
                   </TD>
                   <TD><StatusBadge status={t.status} /></TD>
                   <TD onClick={(e) => e.stopPropagation()}>
-                    {canEdit && t.status !== "done" && !blocked.has(t.id) && (
-                      <Button size="sm" variant="ghost" onClick={() => run(async () => {
-                        const { handedOff } = await repo.updateTask(t.id, { status: "done" });
-                        toast(handedOff.length ? `Marked done. ${handoffMessage(handedOff, data)}` : "Marked done");
-                      })}>
-                        <CheckCircle2 />Done
-                      </Button>
-                    )}
+                    <CompleteButton task={t} />
                   </TD>
                 </TR>
               );

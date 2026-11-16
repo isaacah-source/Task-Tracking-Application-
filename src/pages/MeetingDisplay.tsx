@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { CompleteButton } from "@/components/CompleteButton";
 
 /**
  * Set up what a meeting should see (which projects or people, open or done work, a time
@@ -264,7 +265,12 @@ function Presentation({ o, onBack, onMeeting }: { o: DisplayOptions; onBack: () 
                           {o.groupBy !== "person" && <TD className="whitespace-nowrap">{personName(data, t.ownerId)}</TD>}
                           <TD className="whitespace-nowrap">{t.startDate ? formatDate(t.startDate) : ""}</TD>
                           <TD className="whitespace-nowrap"><DateText date={t.dueDate} status={t.status} today={today} /></TD>
-                          <TD><StatusBadge status={t.status} /></TD>
+                          <TD>
+                            <div className="flex flex-col items-start gap-1.5">
+                              <StatusBadge status={t.status} />
+                              <CompleteButton task={t} />
+                            </div>
+                          </TD>
                           <TD>
                             <div className="flex flex-wrap gap-1">
                               <DueFlag dueDate={t.dueDate} status={t.status} today={today} />

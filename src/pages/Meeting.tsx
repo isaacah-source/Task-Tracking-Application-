@@ -11,7 +11,7 @@ import { startAfterPredecessors } from "@/domain/dependencies";
 import { recentWithNotes, upcomingTranscriptions } from "@/domain/meetings";
 import { ConflictList } from "@/components/ConflictList";
 import { TeamsTranscribeButton, TranscriptCard } from "@/components/TeamsTranscribe";
-import { DepartmentSelect, DueFlag, Field, LineOfEffortSelect, PageHeader, PersonSelect, deptName, personName } from "@/components/common";
+import { DepartmentSelect, DueFlag, Field, LineOfEffortSelect, PageHeader, PersonSelect, StatusBadge, deptName, personName } from "@/components/common";
 import { blankProject } from "@/components/ProjectForm";
 import { meetingOrigin } from "@/data/repository";
 import { TeamsCalendarCard, useCaptureTranscripts } from "@/components/TeamsCalendar";
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
+import { CompleteButton } from "@/components/CompleteButton";
 
 /**
  * Take notes in a meeting and assign work as it comes up. Each assignment is checked live
@@ -390,6 +391,7 @@ function MeetingRoom({ meeting, onLeave, canEdit }: { meeting: MeetingNote; onLe
                       <span className="flex items-center gap-2">
                         <DueFlag dueDate={t.dueDate} status={t.status} today={today} />
                         <Badge variant="outline">Due {formatShort(t.dueDate)}</Badge>
+                        {t.status === "done" ? <StatusBadge status={t.status} /> : <CompleteButton task={t} />}
                       </span>
                     </li>
                   ))}

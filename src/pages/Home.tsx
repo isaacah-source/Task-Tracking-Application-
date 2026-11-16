@@ -6,6 +6,7 @@ import { formatDate } from "@/domain/dates";
 import { BlockedBadge, DateText, DueFlag, Empty, PageHeader, Stat, StatusBadge } from "@/components/common";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CompleteButton } from "@/components/CompleteButton";
 
 export default function HomePage() {
   const { data, me, today, run, repo, myName } = useStore();
@@ -86,6 +87,7 @@ export default function HomePage() {
                       <DueFlag dueDate={t.dueDate} status={t.status} today={today} />
                       <StatusBadge status={t.status} />
                       <DateText date={t.dueDate} status={t.status} today={today} />
+                      <CompleteButton task={t} />
                     </div>
                   </li>
                 ))}
