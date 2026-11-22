@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { useStore } from "@/data/store";
 import { blockedTaskIds, blockers } from "@/domain/dependencies";
 import { dueFlag } from "@/domain/flags";
@@ -7,9 +9,11 @@ import { BlockedBadge, DateText, DueFlag, Empty, PageHeader, Stat, StatusBadge }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CompleteButton } from "@/components/CompleteButton";
+import { TaskDialog } from "@/components/TaskDialog";
 
 export default function HomePage() {
   const { data, me, today, run, repo, myName } = useStore();
+  const [adding, setAdding] = useState(false);
   if (!me) {
     return (
       <>
@@ -30,10 +34,27 @@ export default function HomePage() {
     (p) => p.status !== "done" && (p.ownerId === me.id || data.memberships.some((m) => m.targetType === "project" && m.targetId === p.id && m.personId === me.id && m.status === "accepted")),
   );
   const projectTitle = (id: string) => data.projects.find((p) => p.id === id)?.title ?? "";
+  // A new task starts in one of my own projects when I can add to one, else any I can change.
+  const canAddTo = data.projects.filter((p) => p.status !== "done" && repo.canEdit(p));
+  const startProject = canAddTo.find((p) => myProjects.includes(p)) ?? null;
 
   return (
     <>
-      <PageHeader title={`Good ${new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, ${me.name.split(" ")[0]}`} description={formatDate(today)} />
+      <PageHeader
+        title={`Good ${new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, ${me.name.split(" ")[0]}`}
+        description={formatDate(today)}
+        actions={canAddTo.length > 0 && <Button onClick={() => setAdding(true)}><Plus />New task</Button>}
+      />
+      {adding && (
+        <TaskDialog
+          open
+          chooseProject
+          canEdit
+          projectId={startProject?.id ?? ""}
+          ownerId={me.id}
+          onClose={() => setAdding(false)}
+        />
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Overdue" value={overdue.length} tone={overdue.length ? "danger" : undefined} />

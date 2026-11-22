@@ -21,6 +21,9 @@ loads sample departments, people, and projects. Nothing is saved.
   the project list shows the next open one.
 - **Tasks, events, and milestones** sit inside projects. Each has an owner, dates, an effort
   estimate in hours and minutes (in 15-minute steps), and an estimated cost.
+- **New task from My work.** The **New task** button on My work adds a task without opening
+  a project first: pick the project (one of yours is chosen to start), and you are the owner
+  unless you change it. Handy on a phone.
 - **Subtasks.** Open a task and add subtasks under it by name, with an owner and due date if
   you want. Tick one off right there, or open it to change anything else. Subtasks are tasks
   in their own right: they show on the Task list, My work, the timeline, and workload, and

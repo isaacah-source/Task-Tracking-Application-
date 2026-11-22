@@ -19,24 +19,31 @@ import { Input, Select, Textarea } from "./ui/input";
 /**
  * Create or edit a task. Shows conflicts live and enforces dependency order on save. Pass
  * `parentTaskId` to add a subtask; `onOpenTask` lets the subtask list open one of them.
+ * `chooseProject` adds a project picker for a new task started outside a project page;
+ * `projectId` is then the one picked at first, and `ownerId` the starting owner.
  */
-export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTaskId = null, onOpenTask }: {
+export function TaskDialog({ open, onClose, projectId: startProjectId, task, canEdit, parentTaskId = null, onOpenTask, chooseProject = false, ownerId = null }: {
   open: boolean; onClose: () => void; projectId: ID; task?: Task | null; canEdit: boolean;
-  parentTaskId?: ID | null; onOpenTask?: (t: Task) => void;
+  parentTaskId?: ID | null; onOpenTask?: (t: Task) => void; chooseProject?: boolean; ownerId?: ID | null;
 }) {
   const { data, run, today, repo, toast } = useStore();
-  const project = data.projects.find((p) => p.id === projectId);
-  const canDelete = !!project && repo.canDelete(project);
   const editing = !!task;
   const [v, setV] = useState<TaskInput>(() =>
     task
       ? { ...task }
       : {
-          projectId, title: "", kind: "task", ownerId: null, startDate: null, dueDate: null, status: "notStarted",
+          projectId: startProjectId, title: "", kind: "task", ownerId, startDate: null, dueDate: null, status: "notStarted",
           effortHours: 0, estimatedCost: 0, notes: "", parentTaskId,
         },
   );
+  const projectId = v.projectId;
+  const project = data.projects.find((p) => p.id === projectId);
+  // Projects a new task can go in: open ones this person can change.
+  const projectChoices = chooseProject
+    ? data.projects.filter((p) => p.status !== "done" && repo.canEdit(p)).sort((a, b) => a.title.localeCompare(b.title))
+    : [];
   const parent = data.tasks.find((t) => t.id === (task?.parentTaskId ?? parentTaskId)) ?? null;
+  const canDelete = !!project && repo.canDelete(project);
   const subtasks = task ? subtasksOf(task.id, data.tasks) : [];
   const openSubtasks = subtasks.filter((t) => t.status !== "done").length;
   const initialPreds = task ? predecessorIds(task.id, data.dependencies) : [];
@@ -139,6 +146,14 @@ export function TaskDialog({ open, onClose, projectId, task, canEdit, parentTask
         ) : (
           <form className="grid gap-4" onSubmit={(e) => (e.preventDefault(), save())}>
             <fieldset disabled={!canEdit} className="grid gap-4">
+              {chooseProject && !editing && (
+                <Field label="Project">
+                  <Select value={v.projectId} onChange={(e) => set("projectId", e.target.value)} required>
+                    <option value="">Choose a project</option>
+                    {projectChoices.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </Select>
+                </Field>
+              )}
               <Field label="What needs to happen">
                 <Input value={v.title} onChange={(e) => set("title", e.target.value)} required autoFocus={!editing} />
               </Field>
