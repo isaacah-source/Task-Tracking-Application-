@@ -1,8 +1,9 @@
 // The relay's logic, kept apart from the Azure wiring so it can be tested without Azure.
 // The FSI Projects app sends a request built by src/integrations/ai/provider.ts; this checks
-// it, sends it to Claude with FSI's key, and returns plain text.
+// it, sends it to Claude with the relay's credentials (see credentials.js), and returns plain text.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { CredentialError } from "./credentials.js";
 
 export const MODEL = "claude-opus-5-5";
 /** Largest request accepted: the app's project history is usually well under 1 MB. */
@@ -76,11 +77,17 @@ export async function askClaude(client, { kind, system, messages }) {
     });
     msg = await stream.finalMessage();
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new RelayError(502, "The Claude API key saved in Azure is missing or not valid.");
-    if (e instanceof Anthropic.PermissionDeniedError) throw new RelayError(502, "The Claude API key saved in Azure is not allowed to use this model.");
+    if (e instanceof CredentialError) throw new RelayError(502, e.message);
+    if (e instanceof Anthropic.AuthenticationError) {
+      throw new RelayError(502, "Claude did not accept the relay's sign-in. Check the Claude Console's Workload identity authentication history (or the API key, if one is set in Azure).");
+    }
+    if (e instanceof Anthropic.PermissionDeniedError) throw new RelayError(502, "The relay's Claude account is not allowed to use this model or workspace.");
     if (e instanceof Anthropic.RateLimitError) throw new RelayError(429, "Claude is busy or FSI's usage limit was reached. Try again in a minute.");
     if (e instanceof Anthropic.BadRequestError) throw new RelayError(502, `Claude could not take this request: ${e.message}`);
     if (e instanceof Anthropic.APIError) throw new RelayError(502, `Claude returned an error (${e.status ?? "no status"}). Try again shortly.`);
+    // Anything else the SDK raises is a sign-in problem before the request, such as the
+    // managed identity token or the federation exchange; its message says which.
+    if (e instanceof Anthropic.AnthropicError) throw new RelayError(502, e.message);
     throw e;
   }
   if (msg.stop_reason === "refusal") {

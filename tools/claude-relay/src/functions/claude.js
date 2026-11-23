@@ -1,22 +1,30 @@
 // POST /api/claude: the FSI Projects app's Planning and Ask pages call this.
 //
 // App settings (Azure portal > the Function App > Settings > Environment variables):
-//   ANTHROPIC_API_KEY  FSI's Claude API key (never put it anywhere else)
-//   FSI_TENANT_ID      Directory (tenant) ID, the same one the app uses
-//   FSI_CLIENT_ID      Application (client) ID of the FSI Projects app registration
-// Add the app's address (https://isaacah-source.github.io) under API > CORS.
+//   FSI_TENANT_ID                 Directory (tenant) ID, the same one the app uses
+//   FSI_CLIENT_ID                 Application (client) ID of the FSI Projects app registration
+// Signing in to Claude with workload identity federation (no stored secret):
+//   ANTHROPIC_FEDERATION_RULE_ID  fdrl_... from the Claude Console's Workload identity page
+//   ANTHROPIC_ORGANIZATION_ID     the Claude organization's ID
+//   ANTHROPIC_SERVICE_ACCOUNT_ID  svac_... (optional)
+//   ANTHROPIC_WORKSPACE_ID        wrkspc_... (only when the rule covers several workspaces)
+//   ANTHROPIC_IDENTITY_AUDIENCE   api://<app id> of the "Claude API audience" app registration
+// or, instead, an API key:
+//   ANTHROPIC_API_KEY
+// Also: Identity > System assigned turned on, and the app's address
+// (https://isaacah-source.github.io) under API > CORS.
 
 import { app } from "@azure/functions";
-import Anthropic from "@anthropic-ai/sdk";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { claudeClient, missingSettings } from "../credentials.js";
 import { askClaude, parseRequest, RelayError } from "../relay.js";
 
 const TENANT = process.env.FSI_TENANT_ID ?? "";
 const CLIENT = process.env.FSI_CLIENT_ID ?? "";
 // Microsoft's signing keys for the FSI tenant, fetched once and cached.
 const keys = TENANT ? createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${TENANT}/discovery/v2.0/keys`)) : null;
-// Reads ANTHROPIC_API_KEY.
-const claude = new Anthropic();
+const missing = missingSettings();
+const claude = missing.length ? null : claudeClient();
 
 const reply = (status, body) => ({ status, jsonBody: body });
 
@@ -39,9 +47,7 @@ app.http("claude", {
   methods: ["POST"],
   authLevel: "anonymous",
   handler: async (request, context) => {
-    if (!TENANT || !CLIENT || !process.env.ANTHROPIC_API_KEY) {
-      return reply(500, { error: "The Claude relay is missing a setting in Azure (ANTHROPIC_API_KEY, FSI_TENANT_ID, or FSI_CLIENT_ID)." });
-    }
+    if (!claude) return reply(500, { error: `The Claude relay is missing settings in Azure: ${missing.join(", ")}.` });
     try {
       const who = await signedInUser(request);
       const req = parseRequest(await request.text());

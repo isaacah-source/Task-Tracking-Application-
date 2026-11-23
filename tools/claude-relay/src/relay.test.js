@@ -42,5 +42,5 @@ test("asks for the plan's JSON shape on planning requests", async () => {
 test("explains refusals and key problems", async () => {
   await assert.rejects(askClaude(fakeClient(msg({ stop_reason: "refusal", content: [] })), good), (e) => e.status === 422);
   const authErr = new Anthropic.AuthenticationError(401, { type: "error", error: { type: "authentication_error", message: "bad key" } }, "bad key", new Headers());
-  await assert.rejects(askClaude(fakeClient(authErr), good), (e) => e.status === 502 && /key/.test(e.message));
+  await assert.rejects(askClaude(fakeClient(authErr), good), (e) => e.status === 502 && /sign-in/.test(e.message));
 });

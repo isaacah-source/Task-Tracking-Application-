@@ -1,10 +1,10 @@
 name: Deploy Claude relay to Azure
 
-# Publishes tools/claude-relay (the Azure Function that holds FSI's Claude API key) whenever
+# Publishes tools/claude-relay (the Azure Function that talks to Claude for the app) whenever
 # it changes on main, or on demand from the Actions tab. Needs:
 #   Settings > Secrets and variables > Actions > Variables: FSI_CLAUDE_FUNCTION_APP (the Function App's name)
 #   Settings > Secrets and variables > Actions > Secrets:   AZURE_CLAUDE_PUBLISH_PROFILE (its publish profile)
-# The API key itself is never stored here: it is an app setting on the Function App in Azure.
+# Claude credentials are never stored here: the Function App signs in with its Azure identity.
 on:
   push:
     branches: [main]

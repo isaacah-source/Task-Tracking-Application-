@@ -286,7 +286,7 @@ function ConnectionsAdmin() {
         <CardContent className="grid gap-2 text-sm">
           <p>Status: {ai.connected ? <Badge variant="success">Connected</Badge> : <Badge variant="muted">Not connected</Badge>}</p>
           {ai.connected
-            ? <p className="text-muted-foreground">Requests go to FSI's Claude relay in Azure, which holds the API key and checks each person's FSI sign-in.</p>
+            ? <p className="text-muted-foreground">Requests go to FSI's Claude relay in Azure, which signs in to Claude with its Azure identity and checks each person's FSI sign-in.</p>
             : <p className="text-muted-foreground">Planning uses built-in rules until Claude is connected. See README, "Connecting Claude".</p>}
         </CardContent>
       </Card>

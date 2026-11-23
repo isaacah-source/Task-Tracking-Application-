@@ -2,7 +2,7 @@
   "name": "fsi-claude-relay",
   "version": "1.0.0",
   "private": true,
-  "description": "Azure Function that holds FSI's Claude API key and answers the FSI Projects app's Planning and Ask requests for signed-in FSI staff.",
+  "description": "Azure Function that signs in to Claude with its Azure identity and answers the FSI Projects app's Planning and Ask requests for signed-in FSI staff.",
   "type": "module",
   "main": "src/functions/*.js",
   "scripts": {

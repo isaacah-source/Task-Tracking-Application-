@@ -1,8 +1,8 @@
 // The Claude features (analysis panel and planning function) go through this interface.
-// A static site cannot keep an API key secret, so FSI's key lives in a small Azure Function
-// (tools/claude-relay). ClaudeRelayProvider sends buildAnalysisRequest / buildPlanningRequest
-// there with the person's Microsoft sign-in; until config.json names the relay,
-// StubAIProvider answers instead.
+// A static site cannot hold a credential safely, so a small Azure Function (tools/claude-relay)
+// talks to Claude for the app, signing in with its Azure identity. ClaudeRelayProvider sends
+// buildAnalysisRequest / buildPlanningRequest there with the person's Microsoft sign-in; until
+// config.json names the relay, StubAIProvider answers instead.
 
 import type { DataSet } from "@/domain/types";
 import { buildHistory, type History } from "./history";
