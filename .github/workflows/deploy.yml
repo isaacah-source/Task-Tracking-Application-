@@ -4,6 +4,7 @@ name: Deploy to GitHub Pages
 # Needs, under Settings > Secrets and variables > Actions > Variables:
 #   FSI_TENANT_ID, FSI_CLIENT_ID, FSI_SITE_URL, FSI_SETUP_ADMINS (optional, comma-separated)
 #   FSI_TRACKER_FOLDER_URL, FSI_TRACKER_WORKBOOK (optional: connect the Relationship Tracker)
+#   FSI_CLAUDE_RELAY_URL (optional: the Claude relay's address, to turn on Claude)
 # and Settings > Pages > Source set to "GitHub Actions".
 on:
   push:
@@ -38,6 +39,7 @@ jobs:
           ADMINS: ${{ vars.FSI_SETUP_ADMINS }}
           TRACKER: ${{ vars.FSI_TRACKER_FOLDER_URL }}
           TRACKER_BOOK: ${{ vars.FSI_TRACKER_WORKBOOK }}
+          CLAUDE: ${{ vars.FSI_CLAUDE_RELAY_URL }}
         run: |
           node -e '
             const e = process.env;
@@ -49,6 +51,7 @@ jobs:
             if (e.ADMINS) cfg.setupAdmins = e.ADMINS.split(",").map((s) => s.trim()).filter(Boolean);
             if (e.TRACKER) cfg.trackerFolderUrl = e.TRACKER.trim();
             if (e.TRACKER_BOOK) cfg.trackerWorkbookName = e.TRACKER_BOOK.trim();
+            if (e.CLAUDE) cfg.claudeRelayUrl = e.CLAUDE.trim();
             const fs = require("fs");
             fs.mkdirSync("public", { recursive: true });
             fs.writeFileSync("public/config.json", JSON.stringify(cfg, null, 2));

@@ -285,7 +285,9 @@ function ConnectionsAdmin() {
         <CardHeader><CardTitle>Claude</CardTitle><CardDescription>Powers the planning function and the Ask panel.</CardDescription></CardHeader>
         <CardContent className="grid gap-2 text-sm">
           <p>Status: {ai.connected ? <Badge variant="success">Connected</Badge> : <Badge variant="muted">Not connected</Badge>}</p>
-          {!ai.connected && <p className="text-muted-foreground">Planning uses built-in rules until Claude is connected. See README, "Connecting Claude".</p>}
+          {ai.connected
+            ? <p className="text-muted-foreground">Requests go to FSI's Claude relay in Azure, which holds the API key and checks each person's FSI sign-in.</p>
+            : <p className="text-muted-foreground">Planning uses built-in rules until Claude is connected. See README, "Connecting Claude".</p>}
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">

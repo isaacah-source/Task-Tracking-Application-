@@ -237,16 +237,37 @@ shows them the site if they belong to it.
 
 ## Connecting Claude
 
-The Planning and Ask pages call Claude through `src/integrations/ai/provider.ts`. A static
-site cannot keep an API key secret, so Claude needs a small proxy: an Azure Function or
-Cloudflare Worker that holds FSI's Anthropic key, checks the caller's Microsoft sign-in token,
-and forwards the request to the Anthropic Messages API.
+The Planning and Ask pages use Claude. A website cannot keep an API key secret, so FSI's key
+lives in a small Azure Function, the **Claude relay** (`tools/claude-relay`). The app sends
+each request there with the person's Microsoft sign-in. The relay checks that sign-in belongs
+to FSI and to this app, adds the key, asks Claude (`claude-opus-5-5`), and sends the answer
+back. Anyone not signed in to FSI Projects is turned away. The key never reaches a browser or
+GitHub.
 
-To connect it:
+One-time setup:
 
-1. Deploy the proxy with the key as a secret.
-2. Write a class implementing `AIProvider` that posts `buildAnalysisRequest(...)` or
-   `buildPlanningRequest(...)` to the proxy, and return it from `getAIProvider()`.
+1. **Key.** In the Claude Console (platform.claude.com), add billing, set a monthly spend
+   limit, and create an API key named "FSI Projects relay". Copy it; it is shown once.
+2. **Function App.** In the Azure portal, create a Function App: Consumption plan, Node.js 22,
+   Windows. Then on the new app:
+   - Settings > Environment variables: add `ANTHROPIC_API_KEY` (the key), `FSI_TENANT_ID`
+     and `FSI_CLIENT_ID` (the same values as the GitHub variables). Apply.
+   - API > CORS: add `https://isaacah-source.github.io`. Save.
+   - Settings > Configuration > General settings: turn on SCM Basic Auth Publishing
+     Credentials. Save.
+   - Overview: note the Default domain, and click Download publish profile.
+3. **GitHub** (Settings > Secrets and variables > Actions):
+   - Secret `AZURE_CLAUDE_PUBLISH_PROFILE`: the publish profile file's contents.
+   - Variable `FSI_CLAUDE_FUNCTION_APP`: the Function App's name.
+   - Variable `FSI_CLAUDE_RELAY_URL`: `https://<default domain>/api/claude`.
+4. **Deploy.** Actions > "Deploy Claude relay to Azure" > Run workflow. Then Actions > "Deploy
+   to GitHub Pages" > Run workflow, so the app picks up the relay's address.
+5. **Check.** Admin > Connections shows Claude as Connected; ask a question on Ask about the data.
+
+The relay redeploys on its own when `tools/claude-relay` changes on main. To change the key,
+edit `ANTHROPIC_API_KEY` in Azure; nothing else changes. The relay logs who asked and how many
+tokens each request used (Function App > Monitor). If Claude declines a request on safety
+grounds, the relay lets the API retry on Anthropic's recommended fallback model.
 
 `buildHistory()` in `src/integrations/ai/history.ts` assembles the structured history Claude
 reads: each project's tasks, date changes and their reasons, budget changes, stage handoffs,

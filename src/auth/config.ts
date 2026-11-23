@@ -19,6 +19,12 @@ export interface AppConfig {
   trackerFolderUrl?: string;
   /** The tracker workbook's file name, when the folder holds more than one workbook. */
   trackerWorkbookName?: string;
+  /**
+   * Address of the Azure Function that holds FSI's Claude API key (tools/claude-relay), for
+   * example https://fsi-claude.azurewebsites.net/api/claude. Without it, Planning uses
+   * built-in rules and Ask says Claude is not connected.
+   */
+  claudeRelayUrl?: string;
   /** Run on built-in sample data with no sign-in. Nothing is saved. */
   demo?: boolean;
 }
