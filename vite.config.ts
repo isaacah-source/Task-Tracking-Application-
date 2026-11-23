@@ -42,5 +42,6 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   server: { port: 5176, strictPort: true },
   preview: { port: 5176, strictPort: true },
-  test: { environment: "node" },
+  // tools/ holds separate Node projects (the Claude relay) with their own tests.
+  test: { environment: "node", include: ["src/**/*.test.ts"] },
 });

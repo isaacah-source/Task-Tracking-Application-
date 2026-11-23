@@ -31,6 +31,7 @@ import MeetingDisplayPage from "@/pages/MeetingDisplay";
 import PlanPage from "@/pages/Plan";
 import AskPage from "@/pages/Ask";
 import AdminPage from "@/pages/Admin";
+import { ClaudeRelayProvider, setAIProvider } from "@/integrations/ai/provider";
 
 type Boot =
   | { state: "loading" }
@@ -62,6 +63,7 @@ async function start(): Promise<Boot> {
   if (missing.length) return { state: "setup", repo, auth, cfg, missing };
   await repo.refresh();
   repo.me = repo.data.people.find((p) => p.email.toLowerCase() === email && p.active) ?? null;
+  if (cfg.claudeRelayUrl) setAIProvider(new ClaudeRelayProvider(cfg.claudeRelayUrl, auth.idToken));
   const tracker = cfg.trackerFolderUrl
     ? new WorkbookRelationshipTracker(cfg.trackerFolderUrl, cfg.trackerWorkbookName, auth.token)
     : new UnconfiguredRelationshipTracker();

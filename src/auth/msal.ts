@@ -45,6 +45,21 @@ export class Auth {
     return this.pca.logoutRedirect({ account: this.account });
   }
 
+  /**
+   * The person's Microsoft ID token, which proves to FSI's own services (the Claude relay)
+   * that they are signed in to this app with an FSI account. `fresh` skips the cache.
+   */
+  idToken = async (fresh = false): Promise<string> => {
+    if (!this.account) throw new Error("Not signed in.");
+    try {
+      const r = await this.pca.acquireTokenSilent({ scopes: ["openid", "profile"], account: this.account, forceRefresh: fresh });
+      if (!r.idToken) throw new Error("no ID token");
+      return r.idToken;
+    } catch {
+      throw new Error("Your Microsoft sign-in needs refreshing. Reload the app and try again.");
+    }
+  };
+
   token = async (scopes: string[]): Promise<string> => {
     if (!this.account) throw new Error("Not signed in.");
     try {

@@ -1,0 +1,36 @@
+name: Deploy Claude relay to Azure
+
+# Publishes tools/claude-relay (the Azure Function that talks to Claude for the app) whenever
+# it changes on main, or on demand from the Actions tab. Needs:
+#   Settings > Secrets and variables > Actions > Variables: FSI_CLAUDE_FUNCTION_APP (the Function App's name)
+#   Settings > Secrets and variables > Actions > Secrets:   AZURE_CLAUDE_PUBLISH_PROFILE (its publish profile)
+# Claude credentials are never stored here: the Function App signs in with its Azure identity.
+on:
+  push:
+    branches: [main]
+    paths: ["tools/claude-relay/**", ".github/workflows/deploy-claude-relay.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.FSI_CLAUDE_FUNCTION_APP != ''
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/claude-relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - run: npm prune --omit=dev
+      - uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.FSI_CLAUDE_FUNCTION_APP }}
+          package: tools/claude-relay
+          publish-profile: ${{ secrets.AZURE_CLAUDE_PUBLISH_PROFILE }}

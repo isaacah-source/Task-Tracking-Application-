@@ -1,8 +1,8 @@
 // The Claude features (analysis panel and planning function) go through this interface.
-// Claude is not connected yet: FSI has not decided where its API key will live (a static
-// site cannot keep it secret). Until then StubAIProvider answers. Connecting Claude later
-// means writing one class that sends buildAnalysisRequest / buildPlanningRequest to a small
-// proxy holding the key, and returning it from getAIProvider().
+// A static site cannot hold a credential safely, so a small Azure Function (tools/claude-relay)
+// talks to Claude for the app, signing in with its Azure identity. ClaudeRelayProvider sends
+// buildAnalysisRequest / buildPlanningRequest there with the person's Microsoft sign-in; until
+// config.json names the relay, StubAIProvider answers instead.
 
 import type { DataSet } from "@/domain/types";
 import { buildHistory, type History } from "./history";
@@ -88,6 +88,59 @@ export class StubAIProvider implements AIProvider {
 
   async plan(horizon: PlanHorizon, data: DataSet, today: string): Promise<Plan> {
     return rulePlan(horizon, data, today);
+  }
+}
+
+/** Sends requests to FSI's Claude relay, proving who is asking with their Microsoft ID token. */
+export class ClaudeRelayProvider implements AIProvider {
+  readonly connected = true;
+
+  constructor(
+    private url: string,
+    private idToken: (fresh?: boolean) => Promise<string>,
+    private fetchFn: typeof fetch = (...a) => fetch(...a),
+  ) {}
+
+  private async send(body: object): Promise<string> {
+    const post = async (fresh: boolean) =>
+      this.fetchFn(this.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await this.idToken(fresh)}` },
+        body: JSON.stringify(body),
+      });
+    let res: Response;
+    try {
+      res = await post(false);
+      // A cached sign-in can be a few minutes stale; try once with a fresh one.
+      if (res.status === 401) res = await post(true);
+    } catch (e) {
+      if (e instanceof TypeError) throw new Error("Could not reach Claude. Check your connection, or ask an admin to check the Claude relay in Azure.");
+      throw e;
+    }
+    const out = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
+    if (!res.ok || !out?.text) throw new Error(out?.error ?? `Claude is not available right now (error ${res.status}).`);
+    return out.text;
+  }
+
+  async analyze(question: string, data: DataSet, today: string): Promise<Answer> {
+    const text = await this.send({ kind: "analysis", ...buildAnalysisRequest(question, buildHistory(data, today)) });
+    return { generatedBy: "claude", text };
+  }
+
+  async plan(horizon: PlanHorizon, data: DataSet, today: string, focus?: string): Promise<Plan> {
+    const text = await this.send({ kind: "planning", ...buildPlanningRequest(horizon, buildHistory(data, today), focus) });
+    let parsed: { summary?: unknown; sections?: unknown };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error("Claude's plan came back in an unexpected form. Try again.");
+    }
+    const sections = Array.isArray(parsed.sections)
+      ? parsed.sections
+          .filter((x): x is PlanSection => !!x && typeof x.heading === "string" && Array.isArray(x.items))
+          .map((x) => ({ heading: x.heading, items: x.items.map(String) }))
+      : [];
+    return { horizon, generatedBy: "claude", summary: String(parsed.summary ?? ""), sections };
   }
 }
 

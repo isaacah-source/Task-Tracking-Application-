@@ -237,16 +237,56 @@ shows them the site if they belong to it.
 
 ## Connecting Claude
 
-The Planning and Ask pages call Claude through `src/integrations/ai/provider.ts`. A static
-site cannot keep an API key secret, so Claude needs a small proxy: an Azure Function or
-Cloudflare Worker that holds FSI's Anthropic key, checks the caller's Microsoft sign-in token,
-and forwards the request to the Anthropic Messages API.
+The Planning and Ask pages use Claude. A website cannot hold a credential safely, so a small
+Azure Function, the **Claude relay** (`tools/claude-relay`), talks to Claude for the app. The
+app sends each request there with the person's Microsoft sign-in. The relay checks that the
+sign-in belongs to FSI and to this app, then asks Claude (`claude-opus-5-5`) and sends the
+answer back. Anyone not signed in to FSI Projects is turned away.
 
-To connect it:
+The relay signs in to Claude with **workload identity federation**: the Function App's Azure
+managed identity gets a short-lived Microsoft token, and Anthropic swaps it for a short-lived
+Claude token under a federation rule. No API key or other secret is stored anywhere. (An
+`ANTHROPIC_API_KEY` app setting also works, in place of the federation settings.)
 
-1. Deploy the proxy with the key as a secret.
-2. Write a class implementing `AIProvider` that posts `buildAnalysisRequest(...)` or
-   `buildPlanningRequest(...)` to the proxy, and return it from `getAIProvider()`.
+One-time setup:
+
+1. **Function App.** In the Azure portal, create a Function App: Consumption plan, Node.js 22,
+   Windows. On the new app, open Settings > Identity, turn System assigned On, and copy its
+   Object (principal) ID.
+2. **Audience app registration.** In Microsoft Entra ID > App registrations, register a
+   single-tenant app named "FSI Claude API audience". Under Expose an API, set the
+   Application ID URI to `api://<its Application (client) ID>`. In its Manifest, set
+   `requestedAccessTokenVersion` to `2` and save.
+3. **Claude Console.** Under Settings > Billing, add billing and a spend limit. Then open
+   the Workload identity page, click Connect workload, and choose Microsoft Entra ID:
+   - Tenant ID: the FSI Directory (tenant) ID. Token issuer: **v2.0 (login.microsoftonline.com)**.
+   - Audience: the audience app's Application (client) ID.
+   - Match `oid` to the managed identity's Object ID from step 1 (and `tid` to the tenant ID).
+   - Service account name `fsi-projects-relay`, scope `workspace:developer`, Default workspace.
+   - On the Issuers tab, set the issuer's maximum JWT lifetime to 86400 seconds (managed
+     identity tokens last up to a day).
+   - Note the rule ID (`fdrl_...`), the service account ID (`svac_...`), and the
+     organization ID (Settings > Organization).
+4. **Function App settings** (Settings > Environment variables), then Apply:
+   `FSI_TENANT_ID`, `FSI_CLIENT_ID` (the same values as the GitHub variables),
+   `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`,
+   and `ANTHROPIC_IDENTITY_AUDIENCE` (`api://<audience app ID>`). Then API > CORS: add
+   `https://isaacah-source.github.io`. Then Settings > Configuration > General settings: turn
+   on SCM Basic Auth Publishing Credentials. Then on Overview, note the Default domain and
+   click Download publish profile.
+5. **GitHub** (Settings > Secrets and variables > Actions): secret
+   `AZURE_CLAUDE_PUBLISH_PROFILE` (the publish profile's contents); variables
+   `FSI_CLAUDE_FUNCTION_APP` (the Function App's name) and `FSI_CLAUDE_RELAY_URL`
+   (`https://<default domain>/api/claude`).
+6. **Deploy.** Actions > "Deploy Claude relay to Azure" > Run workflow. Then Actions > "Deploy
+   to GitHub Pages" > Run workflow, so the app picks up the relay's address.
+7. **Check.** Admin > Connections shows Claude as Connected; ask a question on Ask about the
+   data. If Claude refuses the relay's sign-in, the Workload identity page's authentication
+   history in the Claude Console says why.
+
+The relay redeploys on its own when `tools/claude-relay` changes on main. It logs who asked
+and how many tokens each request used (Function App > Monitor). If Claude declines a request
+on safety grounds, the relay lets the API retry on Anthropic's recommended fallback model.
 
 `buildHistory()` in `src/integrations/ai/history.ts` assembles the structured history Claude
 reads: each project's tasks, date changes and their reasons, budget changes, stage handoffs,
